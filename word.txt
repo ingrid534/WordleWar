@@ -1,0 +1,2 @@
+where we will keep all of our words - when server starts will read thorugh and initialize a list with all the words
+assuming the list wont be insanely long, linear search should be fine
