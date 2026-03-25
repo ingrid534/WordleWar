@@ -1,4 +1,3 @@
-// where server will be initialized and wait for players to connect
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -6,6 +5,9 @@
 #include <sys/socket.h>
 #include <netinet/in.h>    /* Internet domain header */
 #include <arpa/inet.h>   /* inet_ntoa() - might only need on mac */ 
+#include "_SERVER_H_"
+
+#define MAX_SESSIONS 50;
 
 /*
  * Initialize a server address associated with the given port.
@@ -73,4 +75,14 @@ int accept_connection(int listenfd) {
     }
 
     return client_soc;
+}
+
+int main() {
+    /* main flow:
+        start server and wait
+        make array of sessions (of size MAX_SESSIONS)
+        once client joins, use select to get client input (for name)
+        initialize player struct with name and fd (return value of accept_connection)
+        
+    */
 }
