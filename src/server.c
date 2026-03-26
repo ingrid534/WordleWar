@@ -6,6 +6,8 @@
 #include <netinet/in.h>    /* Internet domain header */
 #include <arpa/inet.h>   /* inet_ntoa() - might only need on mac */ 
 #include "_SERVER_H_"
+#include "PLAYER_H"
+#include "_CLIENT_H"
 
 #define MAX_SESSIONS 50;
 
@@ -77,8 +79,40 @@ int accept_connection(int listenfd) {
     return client_soc;
 }
 
+
+// initialize new player struct with this fd
 Player *create_player(int client_fd) {
-    // initialize new player struct with this fd
+    // TODO: how do i store this???
+    Player *player = malloc(sizeof(struct Player));
+    player->fd = client_fd;
+
+    enum PlayerState state = WAITING_NAME;
+    player->state = state; 
+
+    return player;
+}
+
+/*
+* Search for player with this fd and handle based on current player state.
+*/
+void handle_player(int client_fd) {
+   // search for player struct with this fd. assume we found it somehow for now
+   enum PlayerState state = player->state;
+    if (state == WAITING_NAME) {
+        give_name(player->fd);
+        // assign given name to this player
+        player->state = WAITING_GAME_CHOICE;
+
+    } else if (state == WAITING_GAME_CHOICE) {
+        give_game_choice(player->fd);
+        // handle that game choice here - check sessions, etc.
+        // if player wants to join -> player->state = WAITING_CODE
+        // else, player->state = WAITING_WORD
+            // remote player from read_fds since we need to wait for second player?
+    } else if (state == WAITING_WORD)
+        give_word(player->fd);
+        // assign this word to player 2 in their game ...
+        // should player store game code for easier search?
 }
 
 
@@ -127,7 +161,11 @@ int main() {
         }
 
         // check the other clients:
-        //for (fd = 0; fd < numfd ....)
+        for (fd = 0; fd < numfd; fd++) {
+            if (clients[fd] != NULL && FD_ISSET(fd, &read_fds)) {
+                handle_player(fd);
+            }
+        } 
         // handle player(player_struct)
             // create this function
     }

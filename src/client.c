@@ -55,8 +55,12 @@ int connect_to_server(int soc, int port, const char *hostname){
 
 }
 
-void give_letter(int soc) {
-    // stuff here -- mb i forgot abt this one.
+void give_name(int soc) {
+    // prompt player for their name
+}
+
+void give_game_choice(int soc) {
+    // ask player whether they want to join existing game or create new one.
 }
 
 void give_word(int soc){

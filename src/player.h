@@ -6,6 +6,7 @@
 typedef enum {
     WAITING_NAME,
     WAITING_GAME_CHOICE,
+    WAITING_CODE,
     WAITING_WORD,
     WAITING_GUESS,
     WAITING_PLAYER
@@ -15,7 +16,6 @@ typedef struct player {
     int fd;
     char name[MAX_NAME_LENGTH];
     char word[6]; // word this player has to guess
-    bool in_game;
     PlayerState state;
 } Player;
 
