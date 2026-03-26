@@ -244,7 +244,7 @@ char game_settings(int soc){
 int main(){
     // Create socket and exit on failure
     int server_socket = socket(AF_INET, SOCK_STREAM, 0);
-    if (soc == -1){
+    if (server_socket == -1){
         perror("socket");
         exit(1);
     }
@@ -265,7 +265,7 @@ int main(){
     char name[MAX_BUF];
     fprintf(stdout, "Please enter your username:")
     fgets(buf, BUFSIZE, stdin);
-    write_to_server(soc, buf, BUFSIZE);
+    write_to_server(server_socket, buf, BUFSIZE);
 
     //Next we expect the server to ask if we want to join a game or create a game
     line_read = read_server_msg(server_socket);
@@ -278,7 +278,7 @@ int main(){
     free(line_read); // Free dynamically allocated memory
 
     //Get user input for game options
-    char option = game_settings(int soc);
+    char option = game_settings(int server_socket);
 
     if (option == 'J'){
         // Expect the server to ask for code
@@ -299,8 +299,8 @@ int main(){
 
         //Communicate to server that you are ready to play
         char server_msg[BUFSIZE];
-
-
+        strcpy(server_msg, "Ready")
+        write_to_server(server_socket, server_msg, BUFSIZE);
     }
     
     // At this point, we know the user has set up the game correctly. We expect the server to ask for a word
