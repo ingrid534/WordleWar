@@ -10,6 +10,7 @@
 #include "_CLIENT_H"
 
 #define MAX_SESSIONS 50;
+#define BUFSIZE 11;
 
 /*
  * Initialize a server address associated with the given port.
@@ -79,6 +80,44 @@ int accept_connection(int listenfd) {
     return client_soc;
 }
 
+void write_to_client(int client_fd, char *msg) {
+    if (write(client_fd, msg, strlen(msg)) == -1) {
+        perror("server: write");
+        exit(1);
+    }
+}
+
+char *read_client_msg(int client_fd) {
+    char *line = malloc(BUFSIZE);
+    if (line == NULL) {
+        perror("server: malloc");
+        exit(1);
+    }
+
+    int num_bytes = read(client_fd, line, BUFSIZE - 1);
+    if (num_bytes == -1) {
+        perror("server: read");
+        exit(1);
+    }
+    line[num_bytes] = '\0';
+    
+    // read until \r\n
+    while(strstr(line, "\r\n") == NULL){
+        int result = read(soc, &line[num_bytes], MAX_BUF - num_bytes);
+    
+        if(result == -1){
+            perror("read");
+            exit(1);
+        }
+        num_bytes += result;
+
+        line[num_bytes] = '\0';
+
+    }
+    line[num_chars - 2] = '\0'; 
+    return line;
+
+}
 
 // initialize new player struct with this fd
 Player *create_player(int client_fd) {
@@ -86,8 +125,12 @@ Player *create_player(int client_fd) {
     Player *player = malloc(sizeof(struct Player));
     player->fd = client_fd;
 
+    // update player state
     enum PlayerState state = WAITING_NAME;
     player->state = state; 
+
+    // write to client signaling to ask for name
+    write_to_client(player_fd, "name");
 
     return player;
 }
@@ -96,15 +139,20 @@ Player *create_player(int client_fd) {
 * Search for player with this fd and handle based on current player state.
 */
 void handle_player(int client_fd) {
-   // search for player struct with this fd. assume we found it somehow for now
+   // TODO: search for player struct with this fd. assume we found it somehow for now
    enum PlayerState state = player->state;
     if (state == WAITING_NAME) {
-        give_name(player->fd);
-        // assign given name to this player
+        char *name = read_client_msg(player->fd);
+        strncpy(player->name, name, sizeof(player->name));
+
+        // update game state and ask for player's game choice
         player->state = WAITING_GAME_CHOICE;
+        write_to_client(player->fd, "choice");
+
 
     } else if (state == WAITING_GAME_CHOICE) {
         give_game_choice(player->fd);
+        char *choice = 
         // handle that game choice here - check sessions, etc.
         // if player wants to join -> player->state = WAITING_CODE
         // else, player->state = WAITING_WORD
