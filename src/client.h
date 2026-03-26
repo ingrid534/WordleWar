@@ -2,6 +2,8 @@
 #define _CLIENT_H_
 
 int connect_to_server(int soc, int port, const char *hostname);
+void give_name(int soc);
+void give_word(int soc);
 void guess_letter(int soc);
 char game_settings(int soc);
 char * read_server_msg(int soc);

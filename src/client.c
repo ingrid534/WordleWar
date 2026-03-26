@@ -55,6 +55,24 @@ int connect_to_server(int soc, int port, const char *hostname){
 
 }
 
+void give_letter(int soc) {
+    // stuff here -- mb i forgot abt this one.
+}
+
+void give_word(int soc){
+    char buf[BUFSIZE];
+    
+    //Get word from user
+    fprintf(stdout, "Please enter a word for your opponent to guess:");
+    fgets(buf, BUFSIZE, stdin);
+
+    // Send chosen word to server; does not include null termination character
+    if(write(soc, buf, strlen(buf))==-1){
+        perror("write");
+        exit(1);
+    }
+
+}
 
 void guess_letter(int soc){
     // Space for 3 characters; adding end of line characters later

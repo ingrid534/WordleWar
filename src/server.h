@@ -2,13 +2,12 @@
 #define _SERVER_H_
 
 #include <netinet/in.h>
-
-extern MAX_SESSIONS
+#include "player.h"
 
 // one session (game) with two players
 struct session {
-    int player1_fd;
-    int player2_fd;
+    Player *player1;
+    Player *player2;
     pid_t pid;
     int active;
 }

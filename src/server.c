@@ -77,6 +77,11 @@ int accept_connection(int listenfd) {
     return client_soc;
 }
 
+Player *create_player(int client_fd) {
+    // initialize new player struct with this fd
+}
+
+
 int main() {
     /* main flow:
         start server and wait
@@ -85,4 +90,47 @@ int main() {
         initialize player struct with name and fd (return value of accept_connection)
         
     */
+
+    // random port
+    struct sockaddr_in *self= init_server_addr(43465);
+    int listenfd= set_up_server_socket(self, (MAX_SESSIONS) * 2);
+
+    // make global var for the 100 - also im doing this rn cuz idk what else to do
+    Player *clients[100] = {NULL};
+    int numfd = listenfd;
+
+    while (1) {
+        fd_set read_fds;
+        FD_ZERO(&read_fds);
+        FD_SET(listenfd, &read_fds);
+
+        // add all connected clients to read_fds 
+        for (int fd = 0; fd < numfd; fd++) {
+            if (clients[fd] != NULL) {
+                FD_SET(clients[fd]);        
+            }
+        }
+
+        // select ... 
+        if (select(numfd + 1, &read_fds, NULL, NULL, NULL) == -1) {
+            perror("server: select");
+            exit(1);
+        }
+        
+        // check which ones are actually ready
+        if (FD_ISSET(listenfd, &read_fds)) {
+            int client_fd = accept_connection(listenfd); 
+            clients[client_fd] = create_player(client_fd);
+            if (clients[client_fd] > numfd) {
+                numfd = clients[client_fd];
+            }
+        }
+
+        // check the other clients:
+        //for (fd = 0; fd < numfd ....)
+        // handle player(player_struct)
+            // create this function
+    }
+
+
 }
