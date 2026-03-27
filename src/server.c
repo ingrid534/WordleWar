@@ -3,6 +3,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <sys/socket.h>
+#include <sys/select.h>
 #include <netinet/in.h>    /* Internet domain header */
 #include <arpa/inet.h>   /* inet_ntoa() - might only need on mac */ 
 #include "_SERVER_H_"
@@ -121,8 +122,8 @@ char *read_client_msg(int client_fd) {
 
 // initialize new player struct with this fd
 Player *create_player(int client_fd) {
-    // TODO: how do i store this???
     Player *player = malloc(sizeof(struct Player));
+    clients[client_fd] = player;
     player->fd = client_fd;
 
     // update player state
@@ -136,11 +137,25 @@ Player *create_player(int client_fd) {
 }
 
 /*
+Handle player's input game choice
+If player says 'join', prompt for join code
+If player says 'create', initialize new game, and add game struct ptr to player
+Assuming that client.c will return strictly "join" or "create"
+*/
+void handle_choice(int client_fd, char *choice) {
+    // TODO: implement this based on client.c implementation
+    if (strcmp(choice, "join") == 0) {
+        
+    }
+}
+
+/*
 * Search for player with this fd and handle based on current player state.
 */
 void handle_player(int client_fd) {
-   // TODO: search for player struct with this fd. assume we found it somehow for now
+   Player *player = clients[client_fd];
    enum PlayerState state = player->state;
+
     if (state == WAITING_NAME) {
         char *name = read_client_msg(player->fd);
         strncpy(player->name, name, sizeof(player->name));
@@ -151,12 +166,14 @@ void handle_player(int client_fd) {
 
 
     } else if (state == WAITING_GAME_CHOICE) {
-        give_game_choice(player->fd);
-        char *choice = 
-        // handle that game choice here - check sessions, etc.
-        // if player wants to join -> player->state = WAITING_CODE
-        // else, player->state = WAITING_WORD
-            // remote player from read_fds since we need to wait for second player?
+        char *choice = read_client_msg(player->fd);
+        handle_choice(player->fd, choice);
+
+        // change state and send next prompt
+        enum PlayerState new_state = WAITING_WORD;
+        player->state = new_state; 
+        write_to_client(player->fd, "guess");
+
     } else if (state == WAITING_WORD)
         give_word(player->fd);
         // assign this word to player 2 in their game ...
@@ -177,8 +194,7 @@ int main() {
     struct sockaddr_in *self= init_server_addr(43465);
     int listenfd= set_up_server_socket(self, (MAX_SESSIONS) * 2);
 
-    // make global var for the 100 - also im doing this rn cuz idk what else to do
-    Player *clients[100] = {NULL};
+    Player *clients[FD_SETSIZE] = {NULL};
     int numfd = listenfd;
 
     while (1) {
@@ -193,7 +209,7 @@ int main() {
             }
         }
 
-        // select ... 
+        // select  
         if (select(numfd + 1, &read_fds, NULL, NULL, NULL) == -1) {
             perror("server: select");
             exit(1);
@@ -204,7 +220,7 @@ int main() {
             int client_fd = accept_connection(listenfd); 
             clients[client_fd] = create_player(client_fd);
             if (clients[client_fd] > numfd) {
-                numfd = clients[client_fd];
+                numfd = client_fd;
             }
         }
 
@@ -214,8 +230,6 @@ int main() {
                 handle_player(fd);
             }
         } 
-        // handle player(player_struct)
-            // create this function
     }
 
 
