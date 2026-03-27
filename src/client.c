@@ -54,18 +54,7 @@ int connect_to_server(int soc, int port, const char *hostname){
     return con;
 
 }
-/*
-void give_word(int soc){
-    char buf[BUFSIZE];
-    
-    //Get word from user
-    fprintf(stdout, "Please enter a word for your opponent to guess:");
-    fgets(buf, BUFSIZE, stdin);
 
-    write_to_server(soc, buf, BUFSIZE);
-
-}
- */
 
 void guess_letter(int soc){
     // Space for 3 characters; adding end of line characters later
@@ -153,6 +142,19 @@ char * validate_game_entries(int soc, char *line_read, char *msg, char *user_pro
         // Get user input
         char user_input[BUFSIZE];
         fgets(user_input, BUFSIZE, stdin);
+        // If the user is supposed to input the code; we check if the input contains a number
+        if (msg == CODE){
+            char *end;
+            long code = strtol(user_input, &end, 10);
+            while(user_input == end){
+                fprintf(stdout, "Invalid. No code found:");
+                fprintf(stdout, prompt);
+                fgets(user_input, BUFSIZE, stdin);
+                code = strtol(user_input, &end, 10);
+            }
+            // At this point, the user entered a number; convert it back to text
+            snprintf(user_input, BUFSIZE, "%ld", code);
+        }
 
         // Write user input
         write_to_server(soc, user_input, BUFSIZE);
@@ -228,6 +230,8 @@ char game_settings(int soc){
     //Get character from user
     fprintf(stdout, "Please enter C to create a new game and J to join an existing game: ");
     fgets(option, 2, stdin); // Space for null terminator and character
+
+    //Ensure they entered valid letter
     while(strcmp(guess, "J")!=0 && strcmp(guess, "C")!=0 ){
         fprintf(stdout, "Invalid Selection ");
         fprintf(stdout, "Please enter C to create a new game and J to join an existing game: ");
@@ -312,9 +316,12 @@ int main(){
         exit(1);
 
     }
-    // We expect the server to have provided number of letters for our word.
-    long length_word = strtol(next_line);
+    // We expect the server to have provided number of letters for our word and number of guesses
+    char *num_guesses;
+    long length_word = strtol(next_line, &num_guesses, 10);
     fprintf("Your word has %ld characters.", length_word);
+    long max_guesses = strtol(num_guesses, NULL, 10);
+    fprintf("You have %ld guesses.", max_guesses);
     //Free dynamically allocated memory
     free(next_line);
 
