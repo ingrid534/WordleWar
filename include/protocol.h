@@ -2,17 +2,20 @@
 #ifndef PROTOCOL_H
 #define PROTOCOL_H
 
+// signals for game initialization
 #define NAME "name"
 #define CHOICE "choice"
 #define CODE "code"
 #define WORD   "word"
-#define GUESS  "guess"
-#define CORRECT_GUESS "correct"
-#define INCORRECT_GUESS "incorrect"
-#define GUESSED_WORD "guessed"
 
-#define STAT_WIN   "win"
-#define STAT_LOSE  "lost"
+// signals for game play
+#define GUESS  "guess"
+#define GUESSED_WORD "guessed"
+#define BOARD "board:"
+
+// signals for end game
 #define STAT_WAIT  "wait"
+#define STAT_WIN   "win:"
+#define STAT_LOSE  "lost:"
 
 #endif // PROTOCOL_H

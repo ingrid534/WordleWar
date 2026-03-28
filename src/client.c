@@ -114,6 +114,9 @@ void prompt_word(int soc){
 
 /*
 * Prompt user to input letter guess, send guess back to server.
+* Display here will include the formatted string sent from the server (wordle style)
+* e.g. If "--A--e" is displayed, then we know "a" is the correct letter in the correct place, 
+* "e" is a letter in the word but in the wrong place, and the other letters were incorrect.
 */
 void prompt_guess(int soc){
     // Space for 3 characters; adding end of line characters later
@@ -125,23 +128,6 @@ void prompt_guess(int soc){
 
     write_to_server(soc, guess,3);
 
-}
-
-/*
-* Tell user they had correct guess.
-* This function will only be called when user hasn't guessed full word,
-* so send "Next guess: " prompt or something.
-*/
-void give_correct_guess(int soc) {
-    // TODO: implement
-}
-
-/*
-* Tell user they had incorrect guess.
-* Prompt to guess again like in previous function.
-*/
-void give_incorrect_guess(int soc) {
-    //TODO: implement
 }
 
 /*
@@ -184,7 +170,7 @@ void write_to_server(int soc, char *msg, int msg_buffer_size){
         length_to_send = msg_buffer_size;
 
     }
-    else{
+    else {
         int len = strlen(msg);
         msg[len] = "\n"; //Re
         msg[len + 1 ] = "\r";
@@ -387,23 +373,17 @@ int main(){
         } else if (strcmp(line_read, GUESS) == 0) {
             prompt_guess(server_socket); 
             free(line_read);
-        } else if (strcmp(line_read, CORRECT_GUESS) == 0) {
-            give_correct_guess(server_socket); 
-            free(line_read);
-        } else if (strcmp(line_read, INCORRECT_GUESS) == 0) {
-            give_incorrect_guess(server_socket);
-            free(line_read);
         } else if (strcmp(line_read, GUESSED_WORD) == 0) {
             give_correct_word(server_socket);
             free(line_read);
         } else if (strcmp(line_read, STAT_WAIT) == 0) {
             give_wait(server_socket); 
             free(line_read);
-        } else if (strcmp(line_read, STAT_WIN) == 0) {
+        } else if (strcmp(line_read, STAT_WIN) == 0) { // TODO: use strstr
             give_win(server_socket); 
             free(line_read);
             break;
-        } else if (strcmp(line_read, STAT_LOST) == 0) {
+        } else if (strcmp(line_read, STAT_LOST) == 0) { // TODO: use strstr
             give_lost(server_socket); 
             free(line_read);
             break;
