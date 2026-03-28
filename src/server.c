@@ -6,9 +6,11 @@
 #include <sys/select.h>
 #include <netinet/in.h>    /* Internet domain header */
 #include <arpa/inet.h>   /* inet_ntoa() - might only need on mac */ 
+
 #include "_SERVER_H_"
 #include "PLAYER_H"
 #include "_CLIENT_H"
+#include "GAME_H"
 
 #define MAX_SESSIONS 50;
 #define BUFSIZE 11;
@@ -120,7 +122,8 @@ char *read_client_msg(int client_fd) {
 
 }
 
-// initialize new player struct with this fd
+// TODO: MOVE TO PLAYER.C
+// initialize new player struct with this fd 
 Player *create_player(int client_fd) {
     Player *player = malloc(sizeof(struct Player));
     clients[client_fd] = player;
@@ -137,15 +140,32 @@ Player *create_player(int client_fd) {
 }
 
 /*
-Handle player's input game choice
-If player says 'join', prompt for join code
-If player says 'create', initialize new game, and add game struct ptr to player
-Assuming that client.c will return strictly "join" or "create"
+* Generate a unique 4-digit code. Ensure it is unique across games.
+*/
+int generate_code() {
+    // bla bla
+}
+
+/*
+* Handle player's input game choice
+* If player says 'J', prompt for join code
+* If player says 'C', initialize new game, and add game struct ptr to player
 */
 void handle_choice(int client_fd, char *choice) {
-    // TODO: implement this based on client.c implementation
-    if (strcmp(choice, "join") == 0) {
+    Player *player = clients[client_fd];
+    
+    if (strcmp(choice, "J") == 0) {
+        write_to_client(clientfd, "code");
+        player->state = WAITING_CODE;
+        return;
+    } else if (strcmp(choice, "C") == 0) {
+        write_to_client(clientfd, "word");
+        player->state = WAITING_WORD;
         
+        int join_code = generate_code();
+        Game *game = create_game(clientfd, join_code); // FUNCTION IN GAME.C
+        player->game = game;
+        return;
     }
 }
 
@@ -172,12 +192,29 @@ void handle_player(int client_fd) {
         // change state and send next prompt
         enum PlayerState new_state = WAITING_WORD;
         player->state = new_state; 
-        write_to_client(player->fd, "guess");
+        write_to_client(player->fd, "word");
 
-    } else if (state == WAITING_WORD)
-        give_word(player->fd);
-        // assign this word to player 2 in their game ...
-        // should player store game code for easier search?
+    } else if (state == WAITING_WORD) {
+        char *word = read_client_msg(player->fd);
+        if (valid_word(word)) {
+            set_player_word(player); // FUNCTION IN GAME.C
+            write_to_client(player->fd, "guess");
+            player->state = WAITING_GUESS;
+        } else {
+            write_to_client(player->fd, "word");
+        }
+    } else if (state == WAITING_GUESS) {
+        char *guess = read_client_msg(player->fd);
+        if (valid_guess(player, guess)) {
+            // if word fully guessed:
+                player->state = WAITING_SCORE; 
+            
+        } else {
+            write_to_client(player->fd, "guess");
+        }
+        
+    }
+
 }
 
 

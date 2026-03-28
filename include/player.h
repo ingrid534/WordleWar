@@ -9,29 +9,21 @@ typedef enum {
     WAITING_CODE,
     WAITING_WORD,
     WAITING_GUESS,
-    WAITING_PLAYER
+    WAITING_SCORE
 } PlayerState;
 
 typedef struct player {
     int fd;
+    Game *game;
     char name[MAX_NAME_LENGTH];
-    char word[6]; // word this player has to guess
     PlayerState state;
 } Player;
 
-// initialize player
 Player *init_player(int fd, char *name);
-
-// update player status to in game 
 void join_game(Player *player);
 
-// update player's word to guess
-void set_player_word(Player *player, char *word);
-
-// reset player status to not in game (they exited the game)
+// update player's word they have to guess
 void exit_game(Player *player); 
-
-// free player struct memory (when player completely exits the server)
 void remove_player(Player *player);
 
 #endif
