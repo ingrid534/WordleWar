@@ -6,24 +6,9 @@
 #include <netinet/in.h>    /* Internet domain header */
 #include <arpa/inet.h>   /* inet_ntoa() - might only need on mac */ 
 #include "_CLIENT_H_"
+#include "PROTOCOL_H"
 
 #define BUFSIZE 13 // 2 extra characters for sending end of line characters
-
-
-#define BEGINS "Game starts. Please enter guess."
-#define EXITS "Game ends."
-#define LOSE "lost"
-#define WIN "win"
-#define WAIT "wait"
-#define WORD "send word"
-#define CODE "code"
-#define NAME "Enter username:"
-#define GAME_OPTIONS "Join or create"
-
-#define CORRECT "correct guess"
-#define INCORRECT "incorrect guess"
-#define GUESSED "already guessed"
-
 
 // where clients (players) will be initialized and connect to server
 int connect_to_server(int soc, int port, const char *hostname){
@@ -63,7 +48,56 @@ void give_game_choice(int soc) {
     // ask player whether they want to join existing game or create new one.
 }
 
-void give_word(int soc){
+void give_name(int soc) {
+    // prompt player for their name
+}
+
+void give_game_choice(int soc) {
+    // ask player whether they want to join existing game or create new one.
+}
+
+/*
+* Prompt user to input name and send name back to server
+*/
+void prompt_name(int soc) {
+    // prompt user to input name
+}
+
+/*
+* Give user choice of either joining existing game or creating new one
+* // TODO: i wasn't sure why give_choice was returning a char before so i made it return void... I may have misunderstood so feel free to change it back.
+*/
+void give_choice(int soc){
+     // Space for 3 characters; adding end of line characters later
+    char option[3];
+    
+    //Get character from user
+    fprintf(stdout, "Please enter C to create a new game and J to join an existing game: ");
+    fgets(option, 2, stdin); // Space for null terminator and character
+    while(strcmp(guess, "J")!=0 && strcmp(guess, "C")!=0 ){
+        fprintf(stdout, "Invalid Selection ");
+        fprintf(stdout, "Please enter C to create a new game and J to join an existing game: ");
+        fgets(option, 2, stdin); // Space for null terminator and character
+    }
+
+    write_to_server(soc, option, 3);
+    return;
+
+}
+
+/*
+* Prompt user to input join code and send join code back to server.
+* should only have basic checking (make sure user input a number), server will check if it is correct code
+* and handle future calls to client
+*/
+void prompt_code(int soc) {
+    // TODO: implement
+}
+
+/*
+* Prompt user to input a word (for other player to guess) and send back to server.
+*/
+void prompt_word(int soc){
     char buf[BUFSIZE];
     
     //Get word from user
@@ -78,7 +112,10 @@ void give_word(int soc){
 
 }
 
-void guess_letter(int soc){
+/*
+* Prompt user to input letter guess, send guess back to server.
+*/
+void prompt_guess(int soc){
     // Space for 3 characters; adding end of line characters later
     char guess[3];
     
@@ -89,6 +126,54 @@ void guess_letter(int soc){
     write_to_server(soc, guess,3);
 
 }
+
+/*
+* Tell user they had correct guess.
+* This function will only be called when user hasn't guessed full word,
+* so send "Next guess: " prompt or something.
+*/
+void give_correct_guess(int soc) {
+    // TODO: implement
+}
+
+/*
+* Tell user they had incorrect guess.
+* Prompt to guess again like in previous function.
+*/
+void give_incorrect_guess(int soc) {
+    //TODO: implement
+}
+
+/*
+* Tell user they guessed correct word.
+* This function will be called only when user is the last in the game to guess their word,
+* so no 'wait for the other player...' message is required.
+*/
+void give_correct_word(int soc) {
+    // TODO: implement
+}
+
+/*
+* Tell user they guessed correct word and must wait for the other player to finish.
+*/
+void give_wait(int soc) {
+    // TODO: implement
+}
+
+/*
+* Tell the user they won the game (plus score...?)
+*/
+void give_win(int soc) {
+    // TODO: implement
+}
+
+/*
+* Tell the user they lost the game (plus score...?)
+*/
+void give_lost(int soc) {
+    // TODO: implement
+}
+
 void write_to_server(int soc, char *msg, int msg_buffer_size){
     // Appending end of line characters
     int length_to_send;
@@ -113,12 +198,11 @@ void write_to_server(int soc, char *msg, int msg_buffer_size){
         exit(1);
     }
 
-
-
 }
+
 // This works because we expect the server to send 1 message at a time
-char * read_server_msg(int soc){
-    char * line = malloc(BUFSIZE);
+char *read_server_msg(int soc){
+    char *line = malloc(BUFSIZE);
     //Check system call
     if(line == NULL){
         perror("malloc");
@@ -136,6 +220,7 @@ char * read_server_msg(int soc){
     // Read data until \r\n which indicates the end of a single message
     while(strstr(line, "\r\n") == NULL){
         int result = read(soc, &line[num_bytes], MAX_BUF - num_bytes);
+        // TODO: what is max_buf?
     
         if(result == -1){
             perror("read");
@@ -150,7 +235,8 @@ char * read_server_msg(int soc){
     return line;
 
 }
-char * validate_game_entries(int soc, char *line_read, char *msg, char *user_prompt){
+
+char *validate_game_entries(int soc, char *line_read, char *msg, char *user_prompt){
 
      // Ensure server sent msg; otherwise error
     int match = strcmp(line_read, msg);
@@ -208,9 +294,8 @@ char * validate_game_entries(int soc, char *line_read, char *msg, char *user_pro
 
     // At this point, user input was correct. Send last read line back
     return line_read;
-
-
 }
+
 // Check the exit message for other details
 int check_exit_status(char *line_read){
     if (strstr(line_read, WIN) != NULL){
@@ -276,10 +361,61 @@ int main(){
     }
 
     // Connect with server; only returns if connection successful
-    connect_to_server(server_socket, 55317, "teach.cs.toronto.edu");
+    connect_to_server(server_socket, 43465, "teach.cs.toronto.edu");
 
-    //Expect the server to ask for name and whether we will join or create a new game
-    char * line_read = read_server_msg(server_socket);
+    // proposed loop:
+        // client does read_server_msg
+        // client checks if it's message it needs - ?? (e.g. "name" request for a client must come before "choice")
+        // handle it with a helper (not straight inside main)
+
+    // not sure what to have as loop condition
+    while (1) {
+        char *line_read = read_server_msg(server_socket); 
+
+        if (strcmp(line_read, NAME) == 0) {
+            prompt_name(server_socket); 
+            free(line_read);
+        } else if (strcmp(line_read, CHOICE) == 0) {
+            give_choice(server_socket);
+            free(line_read);
+        } else if (strcmp(line_read, CODE) == 0) {
+            prompt_code(server_socket);
+            free(line_read);
+        } else if (strcmp(line_read, WORD) == 0) {
+            prompt_word(server_socket); 
+            free(line_read);
+        } else if (strcmp(line_read, GUESS) == 0) {
+            prompt_guess(server_socket); 
+            free(line_read);
+        } else if (strcmp(line_read, CORRECT_GUESS) == 0) {
+            give_correct_guess(server_socket); 
+            free(line_read);
+        } else if (strcmp(line_read, INCORRECT_GUESS) == 0) {
+            give_incorrect_guess(server_socket);
+            free(line_read);
+        } else if (strcmp(line_read, GUESSED_WORD) == 0) {
+            give_correct_word(server_socket);
+            free(line_read);
+        } else if (strcmp(line_read, STAT_WAIT) == 0) {
+            give_wait(server_socket); 
+            free(line_read);
+        } else if (strcmp(line_read, STAT_WIN) == 0) {
+            give_win(server_socket); 
+            free(line_read);
+            break;
+        } else if (strcmp(line_read, STAT_LOST) == 0) {
+            give_lost(server_socket); 
+            free(line_read);
+            break;
+        } else {
+            fprintf(stderr, "Unexpected message from server.");
+            free(line_read);
+            exit(1);
+        }
+    }
+
+
+    // MOVE STUFF BELOW HERE TO HELPERS DEFINED ABOVE ---------------------------
 
     if (strcmp(line_read, NAME) != 0){
         fprintf(stderr, "Unexpected message from server.");
@@ -367,12 +503,4 @@ int main(){
 
 
  
-)
-
-    
-    
-
-
-    
-
 }
