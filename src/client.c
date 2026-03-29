@@ -370,7 +370,7 @@ int main(){
         } else if (strcmp(line_read, WORD) == 0) {
             prompt_word(server_socket); 
             free(line_read);
-        } else if (strcmp(line_read, GUESS) == 0) {
+        } else if (strcmp(line_read, GUESS) == 0) { // TODO: use strstr
             prompt_guess(server_socket); 
             free(line_read);
         } else if (strcmp(line_read, GUESSED_WORD) == 0) {

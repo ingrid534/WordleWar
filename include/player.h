@@ -1,7 +1,9 @@
 // define the player struct here, and any functions that will be used to manage the player (initializing, resetting, etc.)
 #ifndef PLAYER_H
 #define PLAYER_H
-#define MAX_NAME_LENGTH 20
+#include "PROTOCOL_H"
+
+#define MAX_WORD_LENGTH 8
 
 typedef enum {
     WAITING_NAME,
@@ -15,8 +17,12 @@ typedef enum {
 typedef struct player {
     int fd;
     Game *game;
-    char name[MAX_NAME_LENGTH];
+    char name[BUFSIZE];
+    char word[MAX_WORD_LENGTH];
+    char board[MAX_WORD_LENGTH];
     PlayerState state;
+    char buf[BUFSIZE];
+    int inbuf;
 } Player;
 
 Player *init_player(int fd, char *name);

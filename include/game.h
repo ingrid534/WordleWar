@@ -20,8 +20,6 @@ typedef struct game {
     Player *player2;
     int player1_count;
     int player2_count;
-    char *player1_word;
-    char *player2_word;
     int join_code;
     GameState state;
 } Game;

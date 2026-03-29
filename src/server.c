@@ -9,11 +9,10 @@
 
 #include "_SERVER_H_"
 #include "PLAYER_H"
-#include "_CLIENT_H"
 #include "GAME_H"
+#include "PROTOCOL_H"
 
 #define MAX_SESSIONS 50;
-#define BUFSIZE 11;
 
 /*
  * Initialize a server address associated with the given port.
@@ -90,36 +89,65 @@ void write_to_client(int client_fd, char *msg) {
     }
 }
 
-char *read_client_msg(int client_fd) {
-    char *line = malloc(BUFSIZE);
-    if (line == NULL) {
-        perror("server: malloc");
-        exit(1);
-    }
+/*
+ * Search the first n characters of buf for a network newline (\r\n).
+ * Return one plus the index of the '\n' of the first network newline,
+ * or -1 if no network newline is found. The return value is the index into buf
+ * where the current line ends.
+ * Definitely do not use strchr or other string functions to search here. (Why not?)
+ */
+int find_network_newline(const char *buf, int n) {
+	for (int i = 0; i < n-1; i++) {
+		if (buf[i] == '\r' && buf[i+1] == '\n') {
+			return i + 2;
+		}
+	}
+    return -1;
+}
 
-    int num_bytes = read(client_fd, line, BUFSIZE - 1);
-    if (num_bytes == -1) {
+/*
+* Read message from client, calling read only
+* once to avoid server blocking on client.
+*/
+char *read_client_msg(Player *player) {
+    // receive message (with buffer from player struct)
+    int room = sizeof(player->buf) - player-inbuf;
+    char *after = &player->buf[player->inbuf];
+    int nbytes = read(player->fd, after, room);
+    
+    if (nbytes == 0) {
+        printf("Client %d disconnected.\n", player->fd);
+        // TODO: handle player disconnect here (close fd, free memory, etc.)
+        return;
+    } else if (nbytes < 0) {
         perror("server: read");
-        exit(1);
+        return;
     }
-    line[num_bytes] = '\0';
-    
-    // read until \r\n
-    while(strstr(line, "\r\n") == NULL){
-        int result = read(soc, &line[num_bytes], MAX_BUF - num_bytes);
-    
-        if(result == -1){
-            perror("read");
-            exit(1);
-        }
-        num_bytes += result;
+    player->inbuf += nbytes;
+}
 
-        line[num_bytes] = '\0';
 
+/*
+* Extract a complete message out of player's buffer if one is ready.
+* Otherwise, return NULL.
+*/
+char *extract_msg(Player *player) {
+    int where;
+    while ((where = find_network_newline(player->buf, player->inbuf)) > 0) {
+        // null-terminate the string to extract the message
+        player->buf[where - 2] = '\0'; 
+        
+        // Make copy of msg to process it
+        char *msg = malloc(where - 1); 
+        strcpy(msg, player->buf);
+        free(msg);
+
+        player->inbuf -= where;
+        memmove(player->buf, &player->buf[where], player->inbuf);
+
+        return msg;
     }
-    line[num_chars - 2] = '\0'; 
-    return line;
-
+    return NULL;
 }
 
 // TODO: MOVE TO PLAYER.C
@@ -170,51 +198,148 @@ void handle_choice(int client_fd, char *choice) {
 }
 
 /*
+* Concatenate the two strings into a new message.
+* TODO: finish this function
+*/
+char *generate_msg(char *a, char *b) {
+    if (a == NULL || b == NULL) {
+        return NULL; 
+    }
+
+    size_t total_length = strlen(a) + strlen(b) + 1;
+
+    char *msg = malloc(total_length);
+    if (msg == NULL) {
+        perror("server: malloc failed in generate_msg");
+        exit(1); 
+    }
+
+    strncpy(msg, a, strlen(a));
+    strncat(msg, b, strlen(b));
+
+    return msg;
+}
+
+/*
 * Search for player with this fd and handle based on current player state.
 */
 void handle_player(int client_fd) {
-   Player *player = clients[client_fd];
-   enum PlayerState state = player->state;
+    Player *player = clients[client_fd];
+    enum PlayerState state = player->state;
+
+    // TODO: call read_client_msg in main()
+    char *msg = extract_msg(player);
+    if (msg == NULL) {
+        return;
+    }
 
     if (state == WAITING_NAME) {
-        char *name = read_client_msg(player->fd);
-        strncpy(player->name, name, sizeof(player->name));
+        if (strlen(msg) >= sizeof(player->name) - 1) {
+            write_to_client(player->fd, NAME); 
+            return;
+        }
+        strncpy(player->name, msg, sizeof(player->name));
 
         // update game state and ask for player's game choice
         player->state = WAITING_GAME_CHOICE;
         write_to_client(player->fd, "choice");
 
+        // update player state and ask for player's game choice
+        player->state = WAITING_GAME_CHOICE;
+        write_to_client(player->fd, CHOICE);
 
     } else if (state == WAITING_GAME_CHOICE) {
-        char *choice = read_client_msg(player->fd);
-        handle_choice(player->fd, choice);
+        handle_choice(player->fd, msg);
 
-        // change state and send next prompt
-        enum PlayerState new_state = WAITING_WORD;
-        player->state = new_state; 
-        write_to_client(player->fd, "word");
+    } else if (state == WAITING_CODE) {
+        char *endptr;
+        int code = (int)strtol(msg, &endptr, 10);
+        
+        // ERROR CHECKING: 
+        if (endptr == msg || *endptr != '\0') {
+            write_to_client(player->fd, CODE);
+            free(msg); 
+            return;
+        } 
+
+        Game *game = find_game_by_code(code); // TODO: add helper in game.c
+
+        if (game != NULL && game->state == WAITING_FOR_PLAYER) {
+            add_player(player, game); 
+            player->state = WAITING_WORD;
+            write_to_client(player->fd, WORD);
+        } else {
+            // Invalid code or game full, ask for code again
+            write_to_client(player->fd, CODE);
+        }
 
     } else if (state == WAITING_WORD) {
-        char *word = read_client_msg(player->fd);
-        if (valid_word(word)) {
-            set_player_word(player); // FUNCTION IN GAME.C
-            write_to_client(player->fd, "guess");
+        if (valid_word(msg)) { 
+            set_player_word(player, msg); 
             player->state = WAITING_GUESS;
+            
+            Game *game = player->game;
+            Player *opponent = (game->player1 == player) ? game->player2 : game->player1;
+
+            // Check if second player is here and already submitted their word
+            if (opponent != NULL && opponent->state == WAITING_GUESS) {
+                game->state = IN_PROGRESS;
+                
+                char *signal1 = generate_msg(BOARD, game->player1->board);
+                write_to_client(game->player1->fd, signal1);
+                free(signal1); 
+                
+                char *signal2 = generate_msg(BOARD, game->player2->board);
+                write_to_client(game->player2->fd, signal2);
+                free(signal2);
+            } else {
+                write_to_client(player->fd, STAT_WAIT);
+            }
         } else {
-            write_to_client(player->fd, "word");
+            write_to_client(player->fd, WORD); 
         }
+
     } else if (state == WAITING_GUESS) {
-        char *guess = read_client_msg(player->fd);
-        if (valid_guess(player, guess)) {
-            // if word fully guessed:
-                player->state = WAITING_SCORE; 
+        if (strlen(msg) != strlen(player->word)) {
+            write_to_client(player->fd, LENGTH); 
+            return;
+        }
+
+        if (check_guess(player->game, player, msg)) { 
+            player->state = WAITING_SCORE; 
+            write_to_client(player->fd, GUESSED_WORD);
+            
+            Game *game = player->game;
+            Player *opponent = (game->player1 == player) ? game->player2 : game->player1;
+
+            if (opponent->state == WAITING_SCORE) {
+                // Both players finished guessing
+                game->state = GAME_OVER;
+                
+                // Compare scores (guess counts) and send win/lose 
+                if (game->player1_count < game->player2_count) {
+                    write_to_client(game->player1->fd, STAT_WIN);
+                    write_to_client(game->player2->fd, STAT_LOSE);
+                } else if (game->player2_count < game->player1_count) {
+                    write_to_client(game->player2->fd, STAT_WIN);
+                    write_to_client(game->player1->fd, STAT_LOSE);
+                } else {
+                    // TODO: handle ties - make STAT_TIE? 
+                }
+            } else {
+                // Opponent is still guessing
+                write_to_client(player->fd, STAT_WAIT);
+            }
             
         } else {
-            write_to_client(player->fd, "guess");
+            // Incorrect guess, send updated board 
+            char *signal = generate_msg(BOARD, player->board);
+            write_to_client(player->fd, signal);
+            free(signal);
         }
-        
     }
-
+    
+    free(msg); 
 }
 
 
