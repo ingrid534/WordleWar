@@ -2,7 +2,7 @@
 
 ### To-do
 ##### Code
-- [ ] set up server connection (server.c) and waiting for client connections
+- [x] set up server connection (server.c) and waiting for client connections
     - if everyone ok, I kind of want to do this - Ingrid
 - [x] set up client connection to server (client.c)
 - [ ] makefile
@@ -16,8 +16,8 @@
 
 ##### Design
 - [x] 5-8 letter words (plus the new game rules that come with it)
-- [ ] ability to do multiple rounds per game
-    - we can thing about this once we get started and get a better idea of the scope
+- [ ] ability to do multiple rounds per game ? 
+    - we can think about this once we get started and get a better idea of the scope
 
 ##### Misc
 - [x] find word bank for words file
