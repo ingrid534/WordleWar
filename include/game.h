@@ -18,8 +18,8 @@ typedef enum game_state {
 typedef struct game {
     Player *player1;
     Player *player2;
-    int player1_score;
-    int player2_score;
+    int player1_count;
+    int player2_count;
     int join_code;
     GameState state;
 } Game;
