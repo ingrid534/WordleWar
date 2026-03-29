@@ -23,7 +23,7 @@ typedef struct game {
     int       join_code;            // 4-digit code for player2 to join
     GameState state;
  
-    // each player picks a word for the other to guess
+    // player1_word is the word player1 has to guess (chosen by player2), and vice versa
     char player1_word[WORD_LENGTH + 1];
     char player2_word[WORD_LENGTH + 1];
  
@@ -33,13 +33,19 @@ typedef struct game {
     bool player2_solved;
 } Game;
  
-Game *init_game(Player *player1);                                               // create game, generate join code
-void  add_player(Player *player, Game *game);                                   // add player2, advance state
-int   set_word(Game *game, Player *player, const char *word);                   // set the word a player chose; returns 0 on invalid
-bool  check_guess(Game *game, Player *player, const char *guess, int result[]); // score a guess (2=green,1=yellow,0=grey)
-bool  is_game_over(Game *game);                                                 // true when both players are done
-void  finalize_scores(Game *game);                                              // calculate scores, set state to GAME_OVER
-void  end_game(Game *game);                                                     // free game struct
+Game *init_game(Player *player1);                          // create game, generate join code
+void  add_player(Player *player, Game *game);              // add player2, advance state
+int   set_word(Game *game, Player *player, const char *word); // player sets word for opponent; 0 on invalid
+ 
+// score a guess against the player's target word
+// returns malloc'd string: '-' = wrong, lowercase = right letter wrong place, UPPER = correct place
+// also updates guess count and solved state
+char *check_guess(Game *game, Player *player, const char *guess);
+ 
+bool  check_correct_word(const char *guess, const char *target); // exact match check
+bool  is_game_over(Game *game);                            // true when both players are done
+void  finalize_scores(Game *game);                         // calculate scores, set state to GAME_OVER
+void  end_game(Game *game);                                // free game struct
  
 #endif // GAME_H
  

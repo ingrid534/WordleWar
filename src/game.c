@@ -1,4 +1,3 @@
-// game struct, will manage game logic, guess validation, etc.
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
@@ -39,10 +38,11 @@ void add_player(Player *player, Game *game) {
 int set_word(Game *game, Player *player, const char *word) {
     if (!is_valid_word(word)) return 0;
  
+    // player1 chooses the word player2 has to guess, and vice versa
     if (player == game->player1)
-        lowercase_word(game->player1_word, word);
-    else if (player == game->player2)
         lowercase_word(game->player2_word, word);
+    else if (player == game->player2)
+        lowercase_word(game->player1_word, word);
     else
         return 0;
  
@@ -53,12 +53,22 @@ int set_word(Game *game, Player *player, const char *word) {
     return 1;
 }
  
-bool check_guess(Game *game, Player *player, const char *guess, int result[WORD_LENGTH]) {
-    // player1 guesses player2's word and vice versa
-    const char *target = (player == game->player1) ? game->player2_word : game->player1_word;
+bool check_correct_word(const char *guess, const char *target) {
+    return strncmp(guess, target, WORD_LENGTH) == 0;
+}
+ 
+// returns a malloc'd WORD_LENGTH+1 string:
+//   '-'       = letter not in word
+//   lowercase = right letter, wrong position
+//   UPPERCASE = right letter, right position
+char *check_guess(Game *game, Player *player, const char *guess) {
+    const char *target = (player == game->player1) ? game->player1_word : game->player2_word;
  
     char lower[WORD_LENGTH + 1];
     lowercase_word(lower, guess);
+ 
+    char *result = malloc(WORD_LENGTH + 1);
+    if (!result) { perror("check_guess: malloc"); exit(1); }
  
     // two-pass scoring: greens first, then yellows
     int target_used[WORD_LENGTH] = {0};
@@ -66,10 +76,10 @@ bool check_guess(Game *game, Player *player, const char *guess, int result[WORD_
  
     for (int i = 0; i < WORD_LENGTH; i++) {
         if (lower[i] == target[i]) {
-            result[i] = 2;
+            result[i]      = (char)toupper((unsigned char)lower[i]);
             target_used[i] = guess_green[i] = 1;
         } else {
-            result[i] = 0;
+            result[i] = '-';
         }
     }
  
@@ -77,14 +87,15 @@ bool check_guess(Game *game, Player *player, const char *guess, int result[WORD_
         if (guess_green[i]) continue;
         for (int j = 0; j < WORD_LENGTH; j++) {
             if (!target_used[j] && lower[i] == target[j]) {
-                result[i] = 1;
+                result[i]      = lower[i]; // lowercase = right letter, wrong spot
                 target_used[j] = 1;
                 break;
             }
         }
     }
+    result[WORD_LENGTH] = '\0';
  
-    bool solved = (strncmp(lower, target, WORD_LENGTH) == 0);
+    bool solved = check_correct_word(lower, target);
  
     if (player == game->player1) {
         game->player1_guesses++;
@@ -94,7 +105,7 @@ bool check_guess(Game *game, Player *player, const char *guess, int result[WORD_
         if (solved) game->player2_solved = true;
     }
  
-    return solved;
+    return result;
 }
  
 bool is_game_over(Game *game) {
