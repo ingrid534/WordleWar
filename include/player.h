@@ -5,6 +5,8 @@
 
 #define MAX_WORD_LENGTH 8
 
+typedef struct game Game;
+
 typedef enum {
     WAITING_NAME,
     WAITING_GAME_CHOICE,
@@ -18,18 +20,16 @@ typedef struct player {
     int fd;
     Game *game;
     char name[BUFSIZE];
-    char word[MAX_WORD_LENGTH];
-    char board[MAX_WORD_LENGTH];
+    char word[MAX_WORD_LENGTH+1];
+    char board[MAX_WORD_LENGTH+1];
     PlayerState state;
     char buf[BUFSIZE];
     int inbuf;
 } Player;
 
 Player *init_player(int fd, char *name);
-void join_game(Player *player);
-
-// update player's word they have to guess
-void exit_game(Player *player); 
+void update_word(Player *player, char *word);
+void update_board(Player *player, char *board);
 void remove_player(Player *player);
 
 #endif
