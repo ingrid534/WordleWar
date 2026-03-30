@@ -7,12 +7,12 @@
 #include <netinet/in.h>    /* Internet domain header */
 #include <arpa/inet.h>   /* inet_ntoa() - might only need on mac */ 
 
-#include "_SERVER_H_"
-#include "PLAYER_H"
-#include "GAME_H"
-#include "PROTOCOL_H"
+#include "server.h"
+#include "player.h"
+#include "game.h"
+#include "protocol.h"
 
-#define MAX_SESSIONS 50;
+#define MAX_SESSIONS 50
 
 Player *clients[FD_SETSIZE] = {NULL};
 
@@ -43,7 +43,7 @@ int set_up_server_socket(struct sockaddr_in *self, int num_queue) {
     
     // avoid address in use error (see lab 10 socket.c)
     int on = 1;
-    int status = setsockopt(soc, SOL_SOCKET, SO_REUSEADDR,
+    int status = setsockopt(listen_soc, SOL_SOCKET, SO_REUSEADDR,
                             (const char *) &on, sizeof(on));
     if (status < 0) {
         perror("setsockopt");
@@ -51,7 +51,7 @@ int set_up_server_socket(struct sockaddr_in *self, int num_queue) {
     }
 
     // bind socket to addr
-    if (bind(listen_soc, (struct sockadd *) self, sizeof(struct sockaddr_in)) == -1) {
+    if (bind(listen_soc, (struct sockaddr *) self, sizeof(struct sockaddr_in)) == -1) {
         perror("server: bind");
         exit(1);
     }
@@ -72,7 +72,7 @@ int accept_connection(int listenfd) {
     // initialize client address
     struct sockaddr_in client_addr;
     client_addr.sin_family = AF_INET;
-    unsigned int client_len = sizeof(struct sockaddr_in);
+    socklen_t client_len = sizeof(struct sockaddr_in);
 
     // accept connection
     int client_soc = accept(listenfd, (struct sockaddr *) &client_addr, &client_len);
@@ -84,11 +84,11 @@ int accept_connection(int listenfd) {
     return client_soc;
 }
 
-void write_to_client(int client_fd, char *msg) {
+void write_to_client(int client_fd, const char *msg) {
     char buf[1024];
     sprintf(buf, "%s\r\n", msg);
 
-    if (write(client_fd, msg, strlen(buf)) == -1) {
+    if (write(client_fd, buf, strlen(buf)) == -1) {
         perror("server: write");
         exit(1);
     }
@@ -199,8 +199,11 @@ void handle_choice(int client_fd, char *choice) {
 
         char *msg = generate_msg(CMD_CODE, code);
         write_to_client(client_fd, msg);
+        free(msg);
         return;
     }
+
+    write_to_client(client_fd, CHOICE);
 }
 
 /*
@@ -208,15 +211,19 @@ void handle_choice(int client_fd, char *choice) {
 */
 void handle_player(int client_fd) {
     Player *player = clients[client_fd];
-    enum PlayerState state = player->state;
+    char *msg;
     
     while ((msg = extract_msg(player)) != NULL) {
+        PlayerState state = player->state;
+
         if (state == WAITING_NAME) {
             if (strlen(msg) >= sizeof(player->name) - 1) {
                 write_to_client(player->fd, NAME); 
+                free(msg);
                 return;
             }
             strncpy(player->name, msg, sizeof(player->name));
+            player->name[sizeof(player->name) - 1] = '\0';
 
             // update player state and ask for player's game choice
             player->state = WAITING_GAME_CHOICE;
@@ -233,7 +240,7 @@ void handle_player(int client_fd) {
             if (endptr == msg || *endptr != '\0') {
                 write_to_client(player->fd, CODE);
                 free(msg); 
-                return;
+                continue;
             } 
 
             Game *game = find_game_by_code(code); // TODO: add helper in game.c
@@ -248,8 +255,7 @@ void handle_player(int client_fd) {
             }
 
         } else if (state == WAITING_WORD) {
-            if (valid_word(msg)) { 
-                set_word(player, msg); 
+            if (is_valid_word(msg) && set_word(player, msg)) {
                 player->state = WAITING_GUESS;
                 
                 Game *game = player->game;
@@ -280,10 +286,15 @@ void handle_player(int client_fd) {
             }
             
             char *board = check_guess(player, msg);
+            if (board == NULL) {
+                write_to_client(player->fd, BOARD);
+                continue;
+            }
             update_board(player, board);
+            free(board);
 
             // check if word is same as player's word
-            if (check_correct_word(player)) { 
+            if (check_correct_word(player, msg)) {
                 player->state = WAITING_SCORE; 
                 write_to_client(player->fd, GUESSED_WORD);
                 
@@ -298,7 +309,7 @@ void handle_player(int client_fd) {
                     if (game->player1_score > game->player2_score) {
                         write_to_client(game->player1->fd, STAT_WIN);
                         write_to_client(game->player2->fd, STAT_LOSE);
-                    } else if (game->player2_score < game->player1_score) {
+                    } else if (game->player2_score > game->player1_score) {
                         write_to_client(game->player2->fd, STAT_WIN);
                         write_to_client(game->player1->fd, STAT_LOSE);
                     } else {
@@ -365,7 +376,7 @@ int main() {
         }
 
         // check the other clients:
-        for (fd = 0; fd <= numfd; fd++) {
+        for (int fd = 0; fd <= numfd; fd++) {
             if (clients[fd] != NULL && FD_ISSET(fd, &read_fds)) {
                 read_client_msg(clients[fd]);
                 handle_player(fd);

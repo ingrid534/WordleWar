@@ -1,7 +1,7 @@
 // define the player struct here, and any functions that will be used to manage the player (initializing, resetting, etc.)
 #ifndef PLAYER_H
 #define PLAYER_H
-#include "PROTOCOL_H"
+#include "protocol.h"
 
 #define MAX_WORD_LENGTH 8
 
@@ -27,9 +27,9 @@ typedef struct player {
     int inbuf;
 } Player;
 
-Player *init_player(int fd, char *name);
-void update_word(Player *player, char *word);
-void update_board(Player *player, char *board);
+Player *init_player(int fd);
+void update_word(Player *player, const char *word);
+void update_board(Player *player, const char *board);
 void remove_player(Player *player);
 
 #endif
