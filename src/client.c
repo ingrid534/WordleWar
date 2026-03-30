@@ -8,9 +8,8 @@
 #include "_CLIENT_H_"
 #include "PROTOCOL_H"
 
-#define BUFSIZE 13 // 2 extra characters for sending end of line characters
 
-// where clients (players) will be initialized and connect to server
+// Clients connect to server
 int connect_to_server(int soc, int port, const char *hostname){
     //initialize server address    
     struct sockaddr_in server;
@@ -40,50 +39,32 @@ int connect_to_server(int soc, int port, const char *hostname){
 
 }
 
-void give_name(int soc) {
-    // prompt player for their name
-}
-
-void give_game_choice(int soc) {
-    // ask player whether they want to join existing game or create new one.
-}
-
-void give_name(int soc) {
-    // prompt player for their name
-}
-
-void give_game_choice(int soc) {
-    // ask player whether they want to join existing game or create new one.
-}
-
-/*
-* Prompt user to input name and send name back to server
-*/
 void prompt_name(int soc) {
-    // prompt user to input name
+    //Prompt user for name
+    char name[BUFSIZE];
+    fprintf(stdout, "Please enter your username:")
+    fgets(buf, BUFSIZE, stdin);
+    write_to_server(server_socket, buf, BUFSIZE);
 }
 
-/*
-* Give user choice of either joining existing game or creating new one
-* // TODO: i wasn't sure why give_choice was returning a char before so i made it return void... I may have misunderstood so feel free to change it back.
-*/
-void give_choice(int soc){
-     // Space for 3 characters; adding end of line characters later
+void give_game_choice(int soc) {
+    // Space for 3 characters; adding end of line characters after
     char option[3];
     
     //Get character from user
     fprintf(stdout, "Please enter C to create a new game and J to join an existing game: ");
     fgets(option, 2, stdin); // Space for null terminator and character
+
+    //Ensure they entered valid letter
     while(strcmp(guess, "J")!=0 && strcmp(guess, "C")!=0 ){
         fprintf(stdout, "Invalid Selection ");
-        fprintf(stdout, "Please enter C to create a new game and J to join an existing game: ");
+        fprintf(stdout, "Please enter C to create a new game or J to join an existing game: ");
         fgets(option, 2, stdin); // Space for null terminator and character
     }
 
-    write_to_server(soc, option, 3);
-    return;
-
+    write_to_server(soc, option,3);
 }
+
 
 /*
 * Prompt user to input join code and send join code back to server.
@@ -91,25 +72,46 @@ void give_choice(int soc){
 * and handle future calls to client
 */
 void prompt_code(int soc) {
-    // TODO: implement
+    char user_input[BUFSIZE];
+    fprintf("Please enter game code:");
+    fgets(user_input, BUFSIZE, stdin);
+
+    char *end;
+    long code = strtol(user_input, &end, 10);
+
+    while(user_input == end){
+        fprintf(stdout, "Try again. Code must be a number. ");
+        fprintf("Please enter game code:");
+        fgets(user_input, BUFSIZE, stdin);
+        code = strtol(user_input, &end, 10);
+    }
+
+    snprintf(user_input, BUFSIZE, "%ld", code);
+
+     // Write user input
+    write_to_server(soc, user_input, BUFSIZE);
+
 }
 
 /*
 * Prompt user to input a word (for other player to guess) and send back to server.
 */
 void prompt_word(int soc){
-    char buf[BUFSIZE];
-    
-    //Get word from user
-    fprintf(stdout, "Please enter a word for your opponent to guess:");
-    fgets(buf, BUFSIZE, stdin);
 
-    // Send chosen word to server; does not include null termination character
-    if(write(soc, buf, strlen(buf))==-1){
-        perror("write");
-        exit(1);
+    char user_input[BUFSIZE];
+    fprintf("Please enter a word for your opponent to guess:");
+    fgets(user_input, BUFSIZE, stdin);
+
+
+    // Ensure word is of valid length
+    while(strlen(user_input) > 8 || strlen(user_input < 5)){
+        fprintf(stdout, "Try again. Proposed word must be in between 5 to 8 characters. ");
+        fprintf("Please enter a word for your opponent to guess:");
+        fgets(user_input, BUFSIZE, stdin);
     }
 
+    // Write user input
+    write_to_server(soc, user_input, BUFSIZE);
 }
 
 /*
@@ -118,15 +120,22 @@ void prompt_word(int soc){
 * e.g. If "--A--e" is displayed, then we know "a" is the correct letter in the correct place, 
 * "e" is a letter in the word but in the wrong place, and the other letters were incorrect.
 */
-void prompt_guess(int soc){
-    // Space for 3 characters; adding end of line characters later
-    char guess[3];
-    
-    //Get character from user
-    fprintf(stdout, "Please enter your guess:");
-    fgets(guess, 2, stdin); // Space for null terminator and character
+void prompt_guess(int soc, char* server_msg){
+    // Formatted string contains board and num guesses left separated by & - double check this
+    // i.e. Board: --A--e & Number of Guesses Left: 10
+    char *num_guess_left = strstr(server_msg, "&");
+    *num_guess_left = '\0';
 
-    write_to_server(soc, guess,3);
+    printf("%s", num_guess_left + 1);
+    printf("%s", server_msg)
+
+    char guess[BUFSIZE];
+    
+    //Get guess from user
+    fprintf(stdout, "Please enter your guess. Capital letters mean letter is in correct spot. Lowercase letters mean letter is in the wrong spot:");
+    fgets(guess, BUFSIZE, stdin);
+
+    write_to_server(soc, guess,BUFSIZE);
 
 }
 
@@ -135,29 +144,40 @@ void prompt_guess(int soc){
 * This function will be called only when user is the last in the game to guess their word,
 * so no 'wait for the other player...' message is required.
 */
-void give_correct_word(int soc) {
-    // TODO: implement
+void give_correct_word(int soc, char* server_msg) {
+    printf(server_msg); // Depends on how server sends the prompt
+    // Must send a message back to preserve back and forth
+    char response[BUFSIZE] = "Received";
+    write_to_server(server_socket, response,BUFSIZE);
 }
 
 /*
 * Tell user they guessed correct word and must wait for the other player to finish.
 */
 void give_wait(int soc) {
-    // TODO: implement
+    printf("You guessed the word! Please wait for the other player to finish.");
+    // Must send a message back to preserve back and forth
+    char response[BUFSIZE] = "Received";
+    write_to_server(server_socket, response,BUFSIZE);
 }
 
 /*
 * Tell the user they won the game (plus score...?)
 */
-void give_win(int soc) {
-    // TODO: implement
+void give_win(int soc, char * server_msg) {
+    char *score = strstr(server_msg, ":");
+    printf("You win! You took %s guesses.", score + 1);
+    exit(1); // SHOULD WE EXIT; TO DO
+
 }
 
 /*
 * Tell the user they lost the game (plus score...?)
 */
-void give_lost(int soc) {
-    // TODO: implement
+void give_lost(int soc, char * server_msg) {
+    char *score = strstr(server_msg, ":");
+    printf("You lost! You took %s guesses.", score + 1);
+    exit(1); // SHOULD WE EXIT; TO DO
 }
 
 void write_to_server(int soc, char *msg, int msg_buffer_size){
@@ -222,121 +242,6 @@ char *read_server_msg(int soc){
 
 }
 
-char *validate_game_entries(int soc, char *line_read, char *msg, char *user_prompt){
-
-     // Ensure server sent msg; otherwise error
-    int match = strcmp(line_read, msg);
-
-    // Free dynamically allocated memory; no use anymore
-    free(line_read);
-
-    // If the server sent msg, prompt user
-    if (match == 0){
-        fprintf(stdout, prompt);
-        // Get user input
-        char user_input[BUFSIZE];
-        fgets(user_input, BUFSIZE, stdin);
-        // If the user is supposed to input the code; we check if the input contains a number
-        if (msg == CODE){
-            char *end;
-            long code = strtol(user_input, &end, 10);
-            while(user_input == end){
-                fprintf(stdout, "Invalid. No code found:");
-                fprintf(stdout, prompt);
-                fgets(user_input, BUFSIZE, stdin);
-                code = strtol(user_input, &end, 10);
-            }
-            // At this point, the user entered a number; convert it back to text
-            snprintf(user_input, BUFSIZE, "%ld", code);
-        }
-
-        // Write user input
-        write_to_server(soc, user_input, BUFSIZE);
-    }
-    else{
-        fprintf(stderr, "Unexpected message from server.");
-        exit(1);
-    }
-
-    line_read = read_server_msg(soc);
-    // If the user enters invalid parameter, server keeps prompting until they provide the right one
-    while(strcmp(line, msg) == 0){
-        // Free dynamically allocated memory
-        free(line_read);
-
-        fprintf("Invalid. Try again.");
-        fprintf(stdout, prompt);
-
-        // Get user input
-        char user_input[BUFSIZE];
-        fgets(user_input, BUFSIZE, stdin);
-
-        // Write user input
-        write_to_server(soc, user_input, BUFSIZE);
-
-        line_read = read_server_msg(soc);
-
-    }
-
-    // At this point, user input was correct. Send last read line back
-    return line_read;
-}
-
-// Check the exit message for other details
-int check_exit_status(char *line_read){
-    if (strstr(line_read, WIN) != NULL){
-        free(line_read);
-        fprintf(stdout, "You win!");
-        return 0;
-    }
-    else if(strstr(line_read, LOSE) != NULL){
-        free(line_read);
-        fprintf(stdout, "You lose!");
-        return 0;
-    }
-    else{ // Server told client to wait
-        free(line_read);
-        fprintf(stdout, "Wait for opponent.");
-        return 1;
-
-    }
-}
-//Communicate if guess was correct or not
-void check_guess(char *line_read){
-    if (strstr(line_read, CORRECT) != NULL){
-        fprintf(stdout, "Correct guess.");
-    }
-    else if(strstr(line_read, INCORRECT) != NULL){
-        fprintf(stdout, "Incorrect guess.");
-
-    }
-    else{ 
-        fprintf(stdout, "Already guessed this character.");
-
-    free(line_read);
-
-}
-char game_settings(int soc){
-     // Space for 3 characters; adding end of line characters later
-    char option[3];
-    
-    //Get character from user
-    fprintf(stdout, "Please enter C to create a new game and J to join an existing game: ");
-    fgets(option, 2, stdin); // Space for null terminator and character
-
-    //Ensure they entered valid letter
-    while(strcmp(guess, "J")!=0 && strcmp(guess, "C")!=0 ){
-        fprintf(stdout, "Invalid Selection ");
-        fprintf(stdout, "Please enter C to create a new game and J to join an existing game: ");
-        fgets(option, 2, stdin); // Space for null terminator and character
-    }
-
-    write_to_server(soc, option,3);
-    return option;
-
-}
-
-
 
 int main(){
     // Create socket and exit on failure
@@ -349,12 +254,11 @@ int main(){
     // Connect with server; only returns if connection successful
     connect_to_server(server_socket, 43465, "teach.cs.toronto.edu");
 
-    // proposed loop:
-        // client does read_server_msg
-        // client checks if it's message it needs - ?? (e.g. "name" request for a client must come before "choice")
-        // handle it with a helper (not straight inside main)
+        // client reads_server_msg
+        // client checks which prompt
+        // handle it with a helper 
 
-    // not sure what to have as loop condition
+    // Loop is infinite; eventually exits once the server prompts game has ended
     while (1) {
         char *line_read = read_server_msg(server_socket); 
 
@@ -362,28 +266,43 @@ int main(){
             prompt_name(server_socket); 
             free(line_read);
         } else if (strcmp(line_read, CHOICE) == 0) {
-            give_choice(server_socket);
+            give_game_choice(server_socket);
             free(line_read);
         } else if (strcmp(line_read, CODE) == 0) {
+            prompt_code(server_socket);
+            free(line_read);
+        } else if(strcmp(line_read, INVALID_CODE) == 0){
+            printf("Session does not exist.");
             prompt_code(server_socket);
             free(line_read);
         } else if (strcmp(line_read, WORD) == 0) {
             prompt_word(server_socket); 
             free(line_read);
-        } else if (strcmp(line_read, GUESS) == 0) { // TODO: use strstr
+        } else if(strcmp(line_read, INVALID_WORD) == 0){
+            printf("Word does not exist in game dictionary.");
+            prompt_word(server_socket); 
+            free(line_read);
+        } else if(strstr(line_read, GAME_CODE) != NULL){
+            printf(line_read);
+            free(line_read);
+            // Must send a message back to preserve back and forth
+            char response[BUFSIZE] = "Received";
+            write_to_server(server_socket, response,BUFSIZE);
+
+        } else if (strstr(line_read, BOARD) != NULL) { // TODO: use strstr
             prompt_guess(server_socket); 
             free(line_read);
         } else if (strcmp(line_read, GUESSED_WORD) == 0) {
-            give_correct_word(server_socket);
+            give_correct_word(server_socket); // need to preserve back and forth
             free(line_read);
-        } else if (strcmp(line_read, STAT_WAIT) == 0) {
+        } else if (strcmp(line_read, STAT_WAIT) == 0) { // need to preserve back and forth
             give_wait(server_socket); 
             free(line_read);
-        } else if (strcmp(line_read, STAT_WIN) == 0) { // TODO: use strstr
+        } else if (strstr(line_read, STAT_WIN) != NULL) { 
             give_win(server_socket); 
             free(line_read);
             break;
-        } else if (strcmp(line_read, STAT_LOST) == 0) { // TODO: use strstr
+        } else if (strstr(line_read, STAT_LOST) != NULL) { 
             give_lost(server_socket); 
             free(line_read);
             break;
@@ -393,94 +312,5 @@ int main(){
             exit(1);
         }
     }
-
-
-    // MOVE STUFF BELOW HERE TO HELPERS DEFINED ABOVE ---------------------------
-
-    if (strcmp(line_read, NAME) != 0){
-        fprintf(stderr, "Unexpected message from server.");
-        exit(1);
-
-    }
-    free(line_read); // Free dynamically allocated memory
-    //Prompt user for name
-    char name[MAX_BUF];
-    fprintf(stdout, "Please enter your username:")
-    fgets(buf, BUFSIZE, stdin);
-    write_to_server(server_socket, buf, BUFSIZE);
-
-    //Next we expect the server to ask if we want to join a game or create a game
-    line_read = read_server_msg(server_socket);
-
-    if (strcmp(line_read, GAME_OPTIONS) != 0){
-        fprintf(stderr, "Unexpected message from server.");
-        exit(1);
-
-    }
-    free(line_read); // Free dynamically allocated memory
-
-    //Get user input for game options
-    char option = game_settings(int server_socket);
-
-    if (option == 'J'){
-        // Expect the server to ask for code
-        line_read = read_server_msg(server_socket);
-        // Note validate game entries will free line_read
-        char * next_line = validate_game_entries(server_socket, line_read, CODE, "Please enter the code:")
-
-    }
-    else{
-        //Expect the server to return code
-        line_read = read_server_msg(server_socket);
-
-        //Print code
-        fprintf(stdout, "Game code: %s", line_read)
-
-        //Free line
-        free(line_read);
-
-        //Communicate to server that you are ready to play
-        char server_msg[BUFSIZE];
-        strcpy(server_msg, "Ready")
-        write_to_server(server_socket, server_msg, BUFSIZE);
-    }
-    
-    // At this point, we know the user has set up the game correctly. We expect the server to ask for a word
-    char * next_line = validate_game_entries(server_socket, next_line, WORD, "Please enter the word for your opponent to guess:")
-
-    //At this point, we know they have provided a valid word. We expect the server to have notified us that the game has begun, to send our first guess, and number of letters in our word.
-    if (strstr(next_line, BEGIN) == NULL){
-        fprintf(stderr, "Unexpected message from server.");
-        exit(1);
-
-    }
-    // We expect the server to have provided number of letters for our word and number of guesses
-    char *num_guesses;
-    long length_word = strtol(next_line, &num_guesses, 10);
-    fprintf("Your word has %ld characters.", length_word);
-    long max_guesses = strtol(num_guesses, NULL, 10);
-    fprintf("You have %ld guesses.", max_guesses);
-    //Free dynamically allocated memory
-    free(next_line);
-
-
-    // Client sends first guess
-    guess_letter(server_socket);
-    line_read = read_server_msg(server_socket);
-
-    // As long as the server has not said the game has ended, user keeps sending guesses
-    while(strstr(line_read, EXIT) == NULL){
-        check_guess(line_read); // Tell user status of their guess
-        guess_letter(server_socket); // Tell user to input new guess
-        line_read = read_server_msg(server_socket); // Read server response
-
-    }
-    // At this point, we know the server has said the game is done. But the remaining of the exit message, could contain wait, win or lose depending on whether the opponent is done
-    if (check_exit_status(line_read) == 1){
-        line_read = read_server_msg(server_socket);
-        check_exit_status(line_read) == 1
-    }
-
-
  
 }
