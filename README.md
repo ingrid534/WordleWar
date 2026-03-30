@@ -5,13 +5,13 @@
 - [x] set up server connection (server.c) and waiting for client connections
     - if everyone ok, I kind of want to do this - Ingrid
 - [x] set up client connection to server (client.c)
-- [ ] makefile
-- [ ] implement player data/updates (player.c)
+- [x] makefile
+- [x] implement player data/updates (player.c)
     - this is pretty straightforward since the functions in player.h will just be called by server.c or client.c
-- [ ] implement game rules/updates (game.c)
+- [x] implement game rules/updates (game.c)
 - [ ] main game flow (also in server.c)
     - will add once some of main files are implemented
-- [ ] set up for word bank (words.c)
+- [x] set up for word bank (words.c)
 - [ ] testing
 
 ##### Design
