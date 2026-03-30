@@ -7,7 +7,7 @@
 #include <string.h>
 
 #define MAX_WORDS 1000
-#define MAX_WORD_LENGTH 5
+#define MAX_WORD_LENGTH 8
 
 extern char words[MAX_WORDS][MAX_WORD_LENGTH];
 
