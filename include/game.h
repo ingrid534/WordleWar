@@ -18,14 +18,16 @@ typedef enum game_state {
 typedef struct game {
     Player   *player1;
     Player   *player2;
-    int       player1_count;
-    int       player2_count;
+    int       player1_score;
+    int       player2_score;
     int       join_code;            // 4-digit code for player2 to join
     GameState state;
  
     // player1_word is the word player1 has to guess (chosen by player2), and vice versa
-    char player1_word[WORD_LENGTH + 1];
-    char player2_word[WORD_LENGTH + 1];
+    char player1_word[MAX_WORD_LENGTH + 1];
+    char player2_word[MAX_WORD_LENGTH + 1];
+    int  player1_word_length;       // length of player1's target word
+    int  player2_word_length;       // length of player2's target word
  
     int  player1_guesses;
     int  player2_guesses;
@@ -39,13 +41,12 @@ int   set_word(Game *game, Player *player, const char *word); // player sets wor
  
 // score a guess against the player's target word
 // returns malloc'd string: '-' = wrong, lowercase = right letter wrong place, UPPER = correct place
-// also updates guess count and solved state
 char *check_guess(Game *game, Player *player, const char *guess);
  
-bool  check_correct_word(const char *guess, const char *target); // exact match check
-bool  is_game_over(Game *game);                            // true when both players are done
-void  finalize_scores(Game *game);                         // calculate scores, set state to GAME_OVER
-void  end_game(Game *game);                                // free game struct
+bool  check_correct_word(const char *guess, const char *target, int length); // exact match check
+bool  is_game_over(Game *game);     // true when both players are done
+void  finalize_scores(Game *game);  // calculate scores, set state to GAME_OVER
+void  end_game(Game *game);         // free game struct
  
 #endif // GAME_H
  
