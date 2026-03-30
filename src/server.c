@@ -145,7 +145,6 @@ char *extract_msg(Player *player) {
         // Make copy of msg to process it
         char *msg = malloc(where - 1); 
         strcpy(msg, player->buf);
-        free(msg);
 
         player->inbuf -= where;
         memmove(player->buf, &player->buf[where], player->inbuf);
@@ -153,36 +152,6 @@ char *extract_msg(Player *player) {
         return msg;
     }
     return NULL;
-}
-
-/*
-* Generate a unique 4-digit code. Ensure it is unique across games.
-*/
-int generate_code() {
-    // bla bla
-}
-
-/*
-* Handle player's input game choice
-* If player says 'J', prompt for join code
-* If player says 'C', initialize new game, and add game struct ptr to player
-*/
-void handle_choice(int client_fd, char *choice) {
-    Player *player = clients[client_fd];
-    
-    if (strcmp(choice, "J") == 0) {
-        write_to_client(client_fd, "code");
-        player->state = WAITING_CODE;
-        return;
-    } else if (strcmp(choice, "C") == 0) {
-        write_to_client(client_fd, "word");
-        player->state = WAITING_WORD;
-        
-        int join_code = generate_code();
-        Game *game = create_game(client_fd, join_code); // FUNCTION IN GAME.C
-        player->game = game;
-        return;
-    }
 }
 
 /*
@@ -205,6 +174,33 @@ char *generate_msg(char *a, char *b) {
     strcat(msg, b);
 
     return msg;
+}
+
+/*
+* Handle player's input game choice
+* If player says 'J', prompt for join code
+* If player says 'C', initialize new game, and add game struct ptr to player
+*/
+void handle_choice(int client_fd, char *choice) {
+    Player *player = clients[client_fd];
+    
+    if (strcmp(choice, "J") == 0) {
+        write_to_client(client_fd, CODE);
+        player->state = WAITING_CODE;
+        return;
+    } else if (strcmp(choice, "C") == 0) {
+        player->state = WAITING_WORD;
+        
+        Game *game = init_game(player); 
+        player->game = game;
+
+        char code[5];
+        sprintf(code, "%d", game->join_code);
+
+        char *msg = generate_msg(CMD_CODE, code);
+        write_to_client(client_fd, msg);
+        return;
+    }
 }
 
 /*
@@ -253,7 +249,7 @@ void handle_player(int client_fd) {
 
         } else if (state == WAITING_WORD) {
             if (valid_word(msg)) { 
-                set_player_word(player, msg); 
+                set_word(player, msg); 
                 player->state = WAITING_GUESS;
                 
                 Game *game = player->game;
@@ -280,10 +276,14 @@ void handle_player(int client_fd) {
         } else if (state == WAITING_GUESS) {
             if (strlen(msg) != strlen(player->word)) {
                 write_to_client(player->fd, LENGTH); 
-                return;
+                continue;
             }
+            
+            char *board = check_guess(player, msg);
+            update_board(player, board);
 
-            if (check_guess(player->game, player, msg)) { 
+            // check if word is same as player's word
+            if (check_correct_word(player)) { 
                 player->state = WAITING_SCORE; 
                 write_to_client(player->fd, GUESSED_WORD);
                 
@@ -293,12 +293,12 @@ void handle_player(int client_fd) {
                 if (opponent->state == WAITING_SCORE) {
                     // Both players finished guessing
                     game->state = GAME_OVER;
-                    
+                    finalize_scores(game); 
                     // Compare scores (guess counts) and send win/lose 
-                    if (game->player1_count < game->player2_count) {
+                    if (game->player1_score > game->player2_score) {
                         write_to_client(game->player1->fd, STAT_WIN);
                         write_to_client(game->player2->fd, STAT_LOSE);
-                    } else if (game->player2_count < game->player1_count) {
+                    } else if (game->player2_score < game->player1_score) {
                         write_to_client(game->player2->fd, STAT_WIN);
                         write_to_client(game->player1->fd, STAT_LOSE);
                     } else {
@@ -325,7 +325,8 @@ void handle_player(int client_fd) {
 int main() {
     /* main flow:
         start server and wait
-        once client joins, use select to get client input (for name) 
+        once client joins, use select to get client input
+        handle_client based on player and game state 
     */
 
     // random port

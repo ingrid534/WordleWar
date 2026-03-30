@@ -21,6 +21,9 @@ typedef struct game {
     int       player1_score;
     int       player2_score;
     int       join_code;            // 4-digit code for player2 to join
+    int player1_score;
+    int player2_score;
+    int join_code; // 4-digit code for player2 to join
     GameState state;
  
     // player1_word is the word player1 has to guess (chosen by player2), and vice versa
@@ -30,6 +33,7 @@ typedef struct game {
     int  player2_word_length;       // length of player2's target word
  
     int  player1_guesses;
+    int player1_guesses;
     int  player2_guesses;
     bool player1_solved;
     bool player2_solved;
@@ -41,7 +45,8 @@ int   set_word(Game *game, Player *player, const char *word); // player sets wor
  
 // score a guess against the player's target word
 // returns malloc'd string: '-' = wrong, lowercase = right letter wrong place, UPPER = correct place
-char *check_guess(Game *game, Player *player, const char *guess);
+// also updates guess count and solved state
+char *check_guess(Player *player, const char *guess);
  
 bool  check_correct_word(const char *guess, const char *target, int length); // exact match check
 bool  is_game_over(Game *game);     // true when both players are done

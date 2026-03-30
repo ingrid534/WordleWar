@@ -6,6 +6,7 @@
 #define NAME "name"
 #define CHOICE "choice"
 #define CODE "code"
+#define CMD_CODE "code:"
 #define WORD   "word"
 # define GAME_CODE "Session game code:" // we need to give user game code if they created a game so it can be shared
 #define INVALID_CODE "wrong code" // signal that user entered an invalid code
