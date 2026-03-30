@@ -3,29 +3,31 @@
 #include <ctype.h>
 #include "game.h"
  
-// lowercase src into dst (assumes src is WORD_LENGTH alpha chars)
-static void lowercase_word(char dst[WORD_LENGTH + 1], const char *src) {
-    for (int i = 0; i < WORD_LENGTH; i++)
+// lowercase src (of given length) into dst
+static void lowercase_word(char *dst, const char *src, int length) {
+    for (int i = 0; i < length; i++)
         dst[i] = (char)tolower((unsigned char)src[i]);
-    dst[WORD_LENGTH] = '\0';
+    dst[length] = '\0';
 }
  
 Game *init_game(Player *player1) {
     Game *game = malloc(sizeof(Game));
     if (!game) { perror("init_game: malloc"); exit(1); }
  
-    game->player1         = player1;
-    game->player2         = NULL;
-    game->player1_score   = 0;
-    game->player2_score   = 0;
-    game->join_code       = rand() % 9000 + 1000;
-    game->state           = WAITING_FOR_PLAYER;
-    game->player1_word[0] = '\0';
-    game->player2_word[0] = '\0';
-    game->player1_guesses = 0;
-    game->player2_guesses = 0;
-    game->player1_solved  = false;
-    game->player2_solved  = false;
+    game->player1             = player1;
+    game->player2             = NULL;
+    game->player1_score       = 0;
+    game->player2_score       = 0;
+    game->join_code           = rand() % 9000 + 1000;
+    game->state               = WAITING_FOR_PLAYER;
+    game->player1_word[0]     = '\0';
+    game->player2_word[0]     = '\0';
+    game->player1_word_length = 0;
+    game->player2_word_length = 0;
+    game->player1_guesses     = 0;
+    game->player2_guesses     = 0;
+    game->player1_solved      = false;
+    game->player2_solved      = false;
  
     return game;
 }
@@ -38,13 +40,18 @@ void add_player(Player *player, Game *game) {
 int set_word(Game *game, Player *player, const char *word) {
     if (!is_valid_word(word)) return 0;
  
+    int len = (int)strlen(word);
+ 
     // player1 chooses the word player2 has to guess, and vice versa
-    if (player == game->player1)
-        lowercase_word(game->player2_word, word);
-    else if (player == game->player2)
-        lowercase_word(game->player1_word, word);
-    else
+    if (player == game->player1) {
+        lowercase_word(game->player2_word, word, len);
+        game->player2_word_length = len;
+    } else if (player == game->player2) {
+        lowercase_word(game->player1_word, word, len);
+        game->player1_word_length = len;
+    } else {
         return 0;
+    }
  
     // start game once both words are in
     if (game->player1_word[0] != '\0' && game->player2_word[0] != '\0')
@@ -53,28 +60,37 @@ int set_word(Game *game, Player *player, const char *word) {
     return 1;
 }
  
-bool check_correct_word(const char *guess, const char *target) {
-    return strncmp(guess, target, WORD_LENGTH) == 0;
+bool check_correct_word(const char *guess, const char *target, int length) {
+    return strncmp(guess, target, length) == 0;
 }
  
-// returns a malloc'd WORD_LENGTH+1 string:
+// returns a malloc'd string the same length as the target word:
 //   '-'       = letter not in word
 //   lowercase = right letter, wrong position
 //   UPPERCASE = right letter, right position
 char *check_guess(Game *game, Player *player, const char *guess) {
-    const char *target = (player == game->player1) ? game->player1_word : game->player2_word;
+    const char *target;
+    int length;
  
-    char lower[WORD_LENGTH + 1];
-    lowercase_word(lower, guess);
+    if (player == game->player1) {
+        target = game->player1_word;
+        length = game->player1_word_length;
+    } else {
+        target = game->player2_word;
+        length = game->player2_word_length;
+    }
  
-    char *result = malloc(WORD_LENGTH + 1);
+    char lower[MAX_WORD_LENGTH + 1];
+    lowercase_word(lower, guess, length);
+ 
+    char *result = malloc(length + 1);
     if (!result) { perror("check_guess: malloc"); exit(1); }
  
     // two-pass scoring: greens first, then yellows
-    int target_used[WORD_LENGTH] = {0};
-    int guess_green[WORD_LENGTH] = {0};
+    int target_used[MAX_WORD_LENGTH] = {0};
+    int guess_green[MAX_WORD_LENGTH] = {0};
  
-    for (int i = 0; i < WORD_LENGTH; i++) {
+    for (int i = 0; i < length; i++) {
         if (lower[i] == target[i]) {
             result[i]      = (char)toupper((unsigned char)lower[i]);
             target_used[i] = guess_green[i] = 1;
@@ -83,9 +99,9 @@ char *check_guess(Game *game, Player *player, const char *guess) {
         }
     }
  
-    for (int i = 0; i < WORD_LENGTH; i++) {
+    for (int i = 0; i < length; i++) {
         if (guess_green[i]) continue;
-        for (int j = 0; j < WORD_LENGTH; j++) {
+        for (int j = 0; j < length; j++) {
             if (!target_used[j] && lower[i] == target[j]) {
                 result[i]      = lower[i]; // lowercase = right letter, wrong spot
                 target_used[j] = 1;
@@ -93,9 +109,9 @@ char *check_guess(Game *game, Player *player, const char *guess) {
             }
         }
     }
-    result[WORD_LENGTH] = '\0';
+    result[length] = '\0';
  
-    bool solved = check_correct_word(lower, target);
+    bool solved = check_correct_word(lower, target, length);
  
     if (player == game->player1) {
         game->player1_guesses++;
