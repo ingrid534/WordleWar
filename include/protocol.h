@@ -8,9 +8,9 @@
 #define CODE "code"
 #define CMD_CODE "code:"
 #define WORD   "word"
-# define GAME_CODE "Session game code:" // we need to give user game code if they created a game so it can be shared
+#define GAME_CODE "Session game code:" // we need to give user game code if they created a game so it can be shared
 #define INVALID_CODE "wrong code" // signal that user entered an invalid code
-#define INVALID_WORD // signal that user entered 
+#define INVALID_WORD "bad_word" // signal that user entered an invalid dictionary word
 
 
 // signals for game play
@@ -23,7 +23,8 @@
 // signals for end game
 #define STAT_WAIT  "wait"
 #define STAT_WIN   "win:"
-#define STAT_LOSE  "lost:"
+#define STAT_LOST  "lost:"
+#define STAT_LOSE  STAT_LOST
 
 // data
 #define BUFSIZE 256

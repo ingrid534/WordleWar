@@ -308,10 +308,10 @@ void handle_player(int client_fd) {
                     // Compare scores (guess counts) and send win/lose 
                     if (game->player1_score > game->player2_score) {
                         write_to_client(game->player1->fd, STAT_WIN);
-                        write_to_client(game->player2->fd, STAT_LOSE);
+                        write_to_client(game->player2->fd, STAT_LOST);
                     } else if (game->player2_score > game->player1_score) {
                         write_to_client(game->player2->fd, STAT_WIN);
-                        write_to_client(game->player1->fd, STAT_LOSE);
+                        write_to_client(game->player1->fd, STAT_LOST);
                     } else {
                         // TODO: handle ties - make STAT_TIE? 
                     }

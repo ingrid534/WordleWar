@@ -6,7 +6,7 @@ void prompt_name(int soc);
 void give_game_choice(int soc);
 void prompt_code(int soc);
 void prompt_word(int soc);
-void prompt_guess(int soc);
+void prompt_guess(int soc, const char *server_msg);
 void give_correct_word(int soc, const char *server_msg);
 void give_wait(int soc);
 void give_win(int soc, const char *server_msg);

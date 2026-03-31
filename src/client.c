@@ -2,11 +2,12 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <netdb.h>
 #include <sys/socket.h>
 #include <netinet/in.h>    /* Internet domain header */
 #include <arpa/inet.h>   /* inet_ntoa() - might only need on mac */ 
-#include "_CLIENT_H_"
-#include "PROTOCOL_H"
+#include "client.h"
+#include "protocol.h"
 
 
 // Clients connect to server
@@ -20,7 +21,7 @@ int connect_to_server(int soc, int port, const char *hostname){
     //Find IP address of hostname
     struct addrinfo *ai;
     // Call populates list
-    getaddrinfo(hostname, NULL, NULL, &ai)
+    getaddrinfo(hostname, NULL, NULL, &ai);
 
     // Want first element in the list
     server.sin_addr = ((struct sockaddr_in *)ai -> ai_addr)->sin_addr;
@@ -42,9 +43,9 @@ int connect_to_server(int soc, int port, const char *hostname){
 void prompt_name(int soc) {
     //Prompt user for name
     char name[BUFSIZE];
-    fprintf(stdout, "Please enter your username:")
-    fgets(buf, BUFSIZE, stdin);
-    write_to_server(server_socket, buf, BUFSIZE);
+    fprintf(stdout, "Please enter your username:");
+    fgets(name, BUFSIZE, stdin);
+    write_to_server(soc, name, BUFSIZE);
 }
 
 void give_game_choice(int soc) {
@@ -56,7 +57,7 @@ void give_game_choice(int soc) {
     fgets(option, 2, stdin); // Space for null terminator and character
 
     //Ensure they entered valid letter
-    while(strcmp(guess, "J")!=0 && strcmp(guess, "C")!=0 ){
+    while(strcmp(option, "J")!=0 && strcmp(option, "C")!=0 ){
         fprintf(stdout, "Invalid Selection ");
         fprintf(stdout, "Please enter C to create a new game or J to join an existing game: ");
         fgets(option, 2, stdin); // Space for null terminator and character
@@ -73,7 +74,7 @@ void give_game_choice(int soc) {
 */
 void prompt_code(int soc) {
     char user_input[BUFSIZE];
-    fprintf("Please enter game code:");
+    fprintf(stdout, "Please enter game code:");
     fgets(user_input, BUFSIZE, stdin);
 
     char *end;
@@ -81,7 +82,7 @@ void prompt_code(int soc) {
 
     while(user_input == end){
         fprintf(stdout, "Try again. Code must be a number. ");
-        fprintf("Please enter game code:");
+        fprintf(stdout, "Please enter game code:");
         fgets(user_input, BUFSIZE, stdin);
         code = strtol(user_input, &end, 10);
     }
@@ -99,14 +100,14 @@ void prompt_code(int soc) {
 void prompt_word(int soc){
 
     char user_input[BUFSIZE];
-    fprintf("Please enter a word for your opponent to guess:");
+    fprintf(stdout, "Please enter a word for your opponent to guess:");
     fgets(user_input, BUFSIZE, stdin);
 
 
     // Ensure word is of valid length
-    while(strlen(user_input) > 8 || strlen(user_input < 5)){
+    while(strlen(user_input) > 8 || strlen(user_input) < 5){
         fprintf(stdout, "Try again. Proposed word must be in between 5 to 8 characters. ");
-        fprintf("Please enter a word for your opponent to guess:");
+        fprintf(stdout, "Please enter a word for your opponent to guess:");
         fgets(user_input, BUFSIZE, stdin);
     }
 
@@ -120,14 +121,19 @@ void prompt_word(int soc){
 * e.g. If "--A--e" is displayed, then we know "a" is the correct letter in the correct place, 
 * "e" is a letter in the word but in the wrong place, and the other letters were incorrect.
 */
-void prompt_guess(int soc, char* server_msg){
+void prompt_guess(int soc, const char *server_msg){
     // Formatted string contains board and num guesses left separated by & - double check this
     // i.e. Board: --A--e & Number of Guesses Left: 10
-    char *num_guess_left = strstr(server_msg, "&");
-    *num_guess_left = '\0';
+    char msg_copy[BUFSIZE];
+    strncpy(msg_copy, server_msg, BUFSIZE - 1);
+    msg_copy[BUFSIZE - 1] = '\0';
 
-    printf("%s", num_guess_left + 1);
-    printf("%s", server_msg)
+    char *num_guess_left = strstr(msg_copy, "&");
+    if (num_guess_left != NULL) {
+        *num_guess_left = '\0';
+        printf("%s", num_guess_left + 1);
+    }
+    printf("%s", msg_copy);
 
     char guess[BUFSIZE];
     
@@ -144,11 +150,11 @@ void prompt_guess(int soc, char* server_msg){
 * This function will be called only when user is the last in the game to guess their word,
 * so no 'wait for the other player...' message is required.
 */
-void give_correct_word(int soc, char* server_msg) {
-    printf(server_msg); // Depends on how server sends the prompt
+void give_correct_word(int soc, const char* server_msg) {
+    printf("%s", server_msg); // Depends on how server sends the prompt
     // Must send a message back to preserve back and forth
     char response[BUFSIZE] = "Received";
-    write_to_server(server_socket, response,BUFSIZE);
+    write_to_server(soc, response,BUFSIZE);
 }
 
 /*
@@ -158,13 +164,13 @@ void give_wait(int soc) {
     printf("You guessed the word! Please wait for the other player to finish.");
     // Must send a message back to preserve back and forth
     char response[BUFSIZE] = "Received";
-    write_to_server(server_socket, response,BUFSIZE);
+    write_to_server(soc, response,BUFSIZE);
 }
 
 /*
 * Tell the user they won the game (plus score...?)
 */
-void give_win(int soc, char * server_msg) {
+void give_win(int soc, const char * server_msg) {
     char *score = strstr(server_msg, ":");
     printf("You win! You took %s guesses.", score + 1);
     exit(1); // SHOULD WE EXIT; TO DO
@@ -174,7 +180,7 @@ void give_win(int soc, char * server_msg) {
 /*
 * Tell the user they lost the game (plus score...?)
 */
-void give_lost(int soc, char * server_msg) {
+void give_lost(int soc, const char * server_msg) {
     char *score = strstr(server_msg, ":");
     printf("You lost! You took %s guesses.", score + 1);
     exit(1); // SHOULD WE EXIT; TO DO
@@ -185,16 +191,16 @@ void write_to_server(int soc, char *msg, int msg_buffer_size){
     int length_to_send;
     if(strlen(msg) >= msg_buffer_size - 1){
         //if msg fills up most of the buffer, we must delete the last 2 characters
-        msg[msg_buffer_size -1 ] = "\n";
-        msg[msg_buffer_size -2 ] = "\r";
+        msg[msg_buffer_size -1 ] = '\n';
+        msg[msg_buffer_size -2 ] = '\r';
         length_to_send = msg_buffer_size;
 
     }
     else {
         int len = strlen(msg);
-        msg[len] = "\n"; //Re
-        msg[len + 1 ] = "\r";
-        length_to_send = len + 1;
+        msg[len] = '\r'; // Replacing trailing newline with network newline
+        msg[len + 1 ] = '\n';
+        length_to_send = len + 2;
 
     }
 
@@ -225,7 +231,7 @@ char *read_server_msg(int soc){
 
     // Read data until \r\n which indicates the end of a single message
     while(strstr(line, "\r\n") == NULL){
-        int result = read(soc, &line[num_bytes], MAX_BUF - num_bytes);
+        int result = read(soc, &line[num_bytes], BUFSIZE - 1 - num_bytes);
         // TODO: what is max_buf?
     
         if(result == -1){
@@ -237,7 +243,7 @@ char *read_server_msg(int soc){
         line[num_bytes] = '\0';
 
     }
-    line[num_chars - 2] = '\0'; // replace \r\n with null terminator
+    line[num_bytes - 2] = '\0'; // replace \r\n with null terminator
     return line;
 
 }
@@ -283,27 +289,27 @@ int main(){
             prompt_word(server_socket); 
             free(line_read);
         } else if(strstr(line_read, GAME_CODE) != NULL){
-            printf(line_read);
+            printf("%s", line_read);
             free(line_read);
             // Must send a message back to preserve back and forth
             char response[BUFSIZE] = "Received";
             write_to_server(server_socket, response,BUFSIZE);
 
         } else if (strstr(line_read, BOARD) != NULL) { // TODO: use strstr
-            prompt_guess(server_socket); 
+            prompt_guess(server_socket, line_read); 
             free(line_read);
         } else if (strcmp(line_read, GUESSED_WORD) == 0) {
-            give_correct_word(server_socket); // need to preserve back and forth
+            give_correct_word(server_socket, line_read); // need to preserve back and forth
             free(line_read);
         } else if (strcmp(line_read, STAT_WAIT) == 0) { // need to preserve back and forth
             give_wait(server_socket); 
             free(line_read);
         } else if (strstr(line_read, STAT_WIN) != NULL) { 
-            give_win(server_socket); 
+            give_win(server_socket, line_read); 
             free(line_read);
             break;
         } else if (strstr(line_read, STAT_LOST) != NULL) { 
-            give_lost(server_socket); 
+            give_lost(server_socket, line_read); 
             free(line_read);
             break;
         } else {
