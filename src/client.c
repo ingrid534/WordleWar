@@ -9,6 +9,13 @@
 #include "client.h"
 #include "protocol.h"
 
+static void read_user_input(char *buf, int size) {
+    if (fgets(buf, size, stdin) == NULL) {
+        fprintf(stderr, "client: input closed\n");
+        exit(1);
+    }
+}
+
 
 // Clients connect to server
 int connect_to_server(int soc, int port, const char *hostname){
@@ -44,23 +51,28 @@ void prompt_name(int soc) {
     //Prompt user for name
     char name[BUFSIZE];
     fprintf(stdout, "Please enter your username:");
-    fgets(name, BUFSIZE, stdin);
+    read_user_input(name, BUFSIZE);
     write_to_server(soc, name, BUFSIZE);
 }
 
 void give_game_choice(int soc) {
-    // Space for 3 characters; adding end of line characters after
+    // send exactly one-character command: C or J
     char option[3];
+    char input[BUFSIZE];
     
     //Get character from user
     fprintf(stdout, "Please enter C to create a new game and J to join an existing game: ");
-    fgets(option, 2, stdin); // Space for null terminator and character
+    read_user_input(input, BUFSIZE);
+    option[0] = input[0];
+    option[1] = '\0';
 
     //Ensure they entered valid letter
     while(strcmp(option, "J")!=0 && strcmp(option, "C")!=0 ){
         fprintf(stdout, "Invalid Selection ");
         fprintf(stdout, "Please enter C to create a new game or J to join an existing game: ");
-        fgets(option, 2, stdin); // Space for null terminator and character
+        read_user_input(input, BUFSIZE);
+        option[0] = input[0];
+        option[1] = '\0';
     }
 
     write_to_server(soc, option,3);
@@ -75,7 +87,7 @@ void give_game_choice(int soc) {
 void prompt_code(int soc) {
     char user_input[BUFSIZE];
     fprintf(stdout, "Please enter game code:");
-    fgets(user_input, BUFSIZE, stdin);
+    read_user_input(user_input, BUFSIZE);
 
     char *end;
     long code = strtol(user_input, &end, 10);
@@ -83,7 +95,7 @@ void prompt_code(int soc) {
     while(user_input == end){
         fprintf(stdout, "Try again. Code must be a number. ");
         fprintf(stdout, "Please enter game code:");
-        fgets(user_input, BUFSIZE, stdin);
+        read_user_input(user_input, BUFSIZE);
         code = strtol(user_input, &end, 10);
     }
 
@@ -101,14 +113,14 @@ void prompt_word(int soc){
 
     char user_input[BUFSIZE];
     fprintf(stdout, "Please enter a word for your opponent to guess:");
-    fgets(user_input, BUFSIZE, stdin);
+    read_user_input(user_input, BUFSIZE);
 
 
     // Ensure word is of valid length
     while(strlen(user_input) > 8 || strlen(user_input) < 5){
         fprintf(stdout, "Try again. Proposed word must be in between 5 to 8 characters. ");
         fprintf(stdout, "Please enter a word for your opponent to guess:");
-        fgets(user_input, BUFSIZE, stdin);
+        read_user_input(user_input, BUFSIZE);
     }
 
     // Write user input
@@ -139,7 +151,7 @@ void prompt_guess(int soc, const char *server_msg){
     
     //Get guess from user
     fprintf(stdout, "Please enter your guess. Capital letters mean letter is in correct spot. Lowercase letters mean letter is in the wrong spot:");
-    fgets(guess, BUFSIZE, stdin);
+    read_user_input(guess, BUFSIZE);
 
     write_to_server(soc, guess,BUFSIZE);
 
@@ -161,10 +173,8 @@ void give_correct_word(int soc, const char* server_msg) {
 * Tell user they guessed correct word and must wait for the other player to finish.
 */
 void give_wait(int soc) {
+    (void)soc;
     printf("You guessed the word! Please wait for the other player to finish.");
-    // Must send a message back to preserve back and forth
-    char response[BUFSIZE] = "Received";
-    write_to_server(soc, response,BUFSIZE);
 }
 
 /*
@@ -187,22 +197,21 @@ void give_lost(int soc, const char * server_msg) {
 }
 
 void write_to_server(int soc, char *msg, int msg_buffer_size){
-    // Appending end of line characters
-    int length_to_send;
-    if(strlen(msg) >= msg_buffer_size - 1){
-        //if msg fills up most of the buffer, we must delete the last 2 characters
-        msg[msg_buffer_size -1 ] = '\n';
-        msg[msg_buffer_size -2 ] = '\r';
-        length_to_send = msg_buffer_size;
+    int len = (int)strlen(msg);
 
+    // Strip any existing line ending so we always send exactly one CRLF.
+    while (len > 0 && (msg[len - 1] == '\n' || msg[len - 1] == '\r')) {
+        len--;
     }
-    else {
-        int len = strlen(msg);
-        msg[len] = '\r'; // Replacing trailing newline with network newline
-        msg[len + 1 ] = '\n';
-        length_to_send = len + 2;
 
+    if (len > msg_buffer_size - 2) {
+        len = msg_buffer_size - 2;
     }
+
+    msg[len] = '\r';
+    msg[len + 1] = '\n';
+
+    int length_to_send = len + 2;
 
     // Send to server; does not include null termination character
     if(write(soc, msg, length_to_send)==-1){
@@ -214,37 +223,47 @@ void write_to_server(int soc, char *msg, int msg_buffer_size){
 
 // This works because we expect the server to send 1 message at a time
 char *read_server_msg(int soc){
-    char *line = malloc(BUFSIZE);
-    //Check system call
-    if(line == NULL){
-        perror("malloc");
-        exit(1);
-    }
-    int num_bytes = read(soc, line, BUFSIZE-1);
-    // Check if read call failed
-    if(num_bytes == -1){
-        perror("read");
-        exit(1);
-    }
-    // Make result a string
-    line[num_bytes] = '\0';
+    static char pending[BUFSIZE];
+    static int pending_len = 0;
 
-    // Read data until \r\n which indicates the end of a single message
-    while(strstr(line, "\r\n") == NULL){
-        int result = read(soc, &line[num_bytes], BUFSIZE - 1 - num_bytes);
-        // TODO: what is max_buf?
-    
-        if(result == -1){
+    while (1) {
+        for (int i = 0; i < pending_len - 1; i++) {
+            if (pending[i] == '\r' && pending[i + 1] == '\n') {
+                char *line = malloc((size_t)i + 1);
+                if (line == NULL) {
+                    perror("malloc");
+                    exit(1);
+                }
+
+                memcpy(line, pending, (size_t)i);
+                line[i] = '\0';
+
+                int consumed = i + 2;
+                pending_len -= consumed;
+                memmove(pending, pending + consumed, (size_t)pending_len);
+
+                return line;
+            }
+        }
+
+        int room = BUFSIZE - 1 - pending_len;
+        if (room <= 0) {
+            fprintf(stderr, "client: incoming message too long\n");
+            exit(1);
+        }
+
+        int result = read(soc, pending + pending_len, (size_t)room);
+        if (result == -1) {
             perror("read");
             exit(1);
         }
-        num_bytes += result;
+        if (result == 0) {
+            fprintf(stderr, "server disconnected\n");
+            exit(1);
+        }
 
-        line[num_bytes] = '\0';
-
+        pending_len += result;
     }
-    line[num_bytes - 2] = '\0'; // replace \r\n with null terminator
-    return line;
 
 }
 
@@ -258,7 +277,7 @@ int main(){
     }
 
     // Connect with server; only returns if connection successful
-    connect_to_server(server_socket, 43465, "teach.cs.toronto.edu");
+    connect_to_server(server_socket, 43465, "localhost");
 
         // client reads_server_msg
         // client checks which prompt
@@ -288,7 +307,7 @@ int main(){
             printf("Word does not exist in game dictionary.");
             prompt_word(server_socket); 
             free(line_read);
-        } else if(strstr(line_read, GAME_CODE) != NULL){
+        } else if(strstr(line_read, CMD_CODE) != NULL){
             printf("%s", line_read);
             free(line_read);
             // Must send a message back to preserve back and forth

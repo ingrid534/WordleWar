@@ -122,7 +122,11 @@ void read_client_msg(Player *player) {
     
     if (nbytes == 0) {
         printf("Client %d disconnected.\n", player->fd);
-        // TODO: handle player disconnect here (close fd, free memory, etc.)
+
+        int fd = player->fd;
+        close(fd);
+        remove_player(player);
+        clients[fd] = NULL;
         return;
     } else if (nbytes < 0) {
         perror("server: read");
@@ -379,7 +383,9 @@ int main() {
         for (int fd = 0; fd <= numfd; fd++) {
             if (clients[fd] != NULL && FD_ISSET(fd, &read_fds)) {
                 read_client_msg(clients[fd]);
-                handle_player(fd);
+                if (clients[fd] != NULL) {
+                    handle_player(fd);
+                }
             }
         } 
     }
