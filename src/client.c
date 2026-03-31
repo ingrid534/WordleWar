@@ -311,6 +311,9 @@ int main(){
             printf("Word does not exist in game dictionary.");
             prompt_word(server_socket); 
             free(line_read);
+        } else if (strcmp(line_read, WAIT_OPPONENT_WORD) == 0) {
+            printf("Word submitted. Waiting for your opponent to submit their word.\n");
+            free(line_read);
         } else if(strstr(line_read, CMD_CODE) != NULL){
             printf("%s", line_read);
             free(line_read);

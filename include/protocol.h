@@ -16,6 +16,7 @@
 
 // signals for game play
 #define BOARD "board:" // signal to display board and prompt user for guess
+#define WAIT_OPPONENT_WORD "wait_opponent_word" // waiting for opponent to submit their word
 
 // Why do we need guessed word - at that point, you'd likely send wait?
 #define GUESSED_WORD "guessed" // signal to tell user they guessed their word

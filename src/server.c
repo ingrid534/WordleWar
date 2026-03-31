@@ -266,13 +266,13 @@ void handle_player(int client_fd) {
 
         } else if (state == WAITING_WORD) {
             if (is_valid_word(msg) && set_word(player, msg)) {
-                player->state = WAITING_GUESS;
-                
                 Game *game = player->game;
                 Player *opponent = (game->player1 == player) ? game->player2 : game->player1;
 
-                // Check if second player is here and already submitted their word
-                if (opponent != NULL && opponent->state == WAITING_GUESS) {
+                // Guessing starts only after both players have submitted words.
+                if (opponent != NULL && opponent->state == WAITING_OPPONENT_WORD) {
+                    player->state = WAITING_GUESS;
+                    opponent->state = WAITING_GUESS;
                     game->state = IN_PROGRESS;
                     
                     char *signal1 = generate_msg(BOARD, game->player1->board);
@@ -283,11 +283,15 @@ void handle_player(int client_fd) {
                     write_to_client(game->player2->fd, signal2);
                     free(signal2);
                 } else {
-                    write_to_client(player->fd, STAT_WAIT);
+                    player->state = WAITING_OPPONENT_WORD;
+                    write_to_client(player->fd, WAIT_OPPONENT_WORD);
                 }
             } else {
                 write_to_client(player->fd, WORD); 
             }
+
+        } else if (state == WAITING_OPPONENT_WORD) {
+            write_to_client(player->fd, WAIT_OPPONENT_WORD);
 
         } else if (state == WAITING_GUESS) {
             if (strlen(msg) != strlen(player->word)) {

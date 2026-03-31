@@ -12,6 +12,7 @@ typedef enum {
     WAITING_GAME_CHOICE,
     WAITING_CODE,
     WAITING_WORD,
+    WAITING_OPPONENT_WORD,
     WAITING_GUESS,
     WAITING_SCORE
 } PlayerState;
