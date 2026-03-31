@@ -162,7 +162,7 @@ char *extract_msg(Player *player) {
 /*
 * Concatenate the two strings into a new message.
 */
-char *generate_msg(char *a, char *b) {
+char *generate_msg(const char *a, const char *b) {
     if (a == NULL || b == NULL) {
         return NULL; 
     }
@@ -179,6 +179,19 @@ char *generate_msg(char *a, char *b) {
     strcat(msg, b);
 
     return msg;
+}
+
+void write_status_with_score(int client_fd, const char *status_prefix, int score) {
+    char score_buf[12];
+    snprintf(score_buf, sizeof(score_buf), "%d", score);
+
+    char *msg = generate_msg(status_prefix, score_buf);
+    if (msg == NULL) {
+        return;
+    }
+
+    write_to_client(client_fd, msg);
+    free(msg);
 }
 
 /*
@@ -329,13 +342,15 @@ void handle_player(int client_fd) {
                     finalize_scores(game); 
                     // Compare scores (guess counts) and send win/lose 
                     if (game->player1_score > game->player2_score) {
-                        write_to_client(game->player1->fd, STAT_WIN);
-                        write_to_client(game->player2->fd, STAT_LOST);
+                        write_status_with_score(game->player1->fd, STAT_WIN, game->player1_score);
+                        write_status_with_score(game->player2->fd, STAT_LOST, game->player2_score);
+
                     } else if (game->player2_score > game->player1_score) {
-                        write_to_client(game->player2->fd, STAT_WIN);
-                        write_to_client(game->player1->fd, STAT_LOST);
+                        write_status_with_score(game->player2->fd, STAT_WIN, game->player2_score);
+                        write_status_with_score(game->player1->fd, STAT_LOST, game->player1_score);
                     } else {
-                        // TODO: handle ties - make STAT_TIE? 
+                        write_status_with_score(game->player1->fd, STAT_TIE, game->player1_score);
+                        write_status_with_score(game->player2->fd, STAT_TIE, game->player1_score);
                     }
                 } else {
                     // Opponent is still guessing

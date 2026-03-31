@@ -178,22 +178,28 @@ void give_wait(int soc) {
 }
 
 /*
-* Tell the user they won the game (plus score...?)
+* Tell the user they won the game 
 */
 void give_win(int soc, const char * server_msg) {
     char *score = strstr(server_msg, ":");
-    printf("You win! You took %s guesses.", score + 1);
-    exit(1); // SHOULD WE EXIT; TO DO
+    printf("You win! You scored %s.", score + 1);
 
 }
 
 /*
-* Tell the user they lost the game (plus score...?)
+* Tell the user they lost the game 
 */
 void give_lost(int soc, const char * server_msg) {
     char *score = strstr(server_msg, ":");
-    printf("You lost! You took %s guesses.", score + 1);
-    exit(1); // SHOULD WE EXIT; TO DO
+    printf("You lost! You scored: %s.", score + 1);
+}
+
+/*
+* Tell both users they tied
+*/
+void give_tie(int soc, const char *server_msg) {
+    char *score = strstr(server_msg, ":");
+    printf("You tied! You both scored: %s.", score + 1);
 }
 
 void write_to_server(int soc, char *msg, int msg_buffer_size){
@@ -339,6 +345,10 @@ int main(){
             break;
         } else if (strstr(line_read, STAT_LOST) != NULL) { 
             give_lost(server_socket, line_read); 
+            free(line_read);
+            break;
+        } else if (strstr(line_read, STAT_TIE) != NULL) { 
+            give_tie(server_socket, line_read);
             free(line_read);
             break;
         } else {

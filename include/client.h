@@ -11,6 +11,7 @@ void give_correct_word(int soc, const char *server_msg);
 void give_wait(int soc);
 void give_win(int soc, const char *server_msg);
 void give_lost(int soc, const char *server_msg);
+void give_tie (int soc, const char *server_msg);
 char * read_server_msg(int soc);
 void write_to_server(int soc, char *msg, int msg_buffer_size);
 
