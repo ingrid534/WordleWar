@@ -293,6 +293,10 @@ int main(){
         } else if (strcmp(line_read, CHOICE) == 0) {
             give_game_choice(server_socket);
             free(line_read);
+        } else if (strcmp(line_read, GAME_FULL) == 0) {
+            printf("Game capacity full. Wait or join a game.\n");
+            give_game_choice(server_socket);
+            free(line_read);
         } else if (strcmp(line_read, CODE) == 0) {
             prompt_code(server_socket);
             free(line_read);
@@ -319,6 +323,9 @@ int main(){
             free(line_read);
         } else if (strcmp(line_read, GUESSED_WORD) == 0) {
             give_correct_word(server_socket, line_read); // need to preserve back and forth
+            free(line_read);
+        } else if (strcmp(line_read, OUT_OF_GUESSES) == 0) {
+            printf("You are out of guesses. Waiting for the other player to finish.\n");
             free(line_read);
         } else if (strcmp(line_read, STAT_WAIT) == 0) { // need to preserve back and forth
             give_wait(server_socket); 

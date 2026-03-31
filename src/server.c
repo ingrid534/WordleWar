@@ -11,6 +11,7 @@
 #include "player.h"
 #include "game.h"
 #include "protocol.h"
+#include "words.h"
 
 #define MAX_SESSIONS 50
 
@@ -193,9 +194,14 @@ void handle_choice(int client_fd, char *choice) {
         player->state = WAITING_CODE;
         return;
     } else if (strcmp(choice, "C") == 0) {
-        player->state = WAITING_WORD;
-        
         Game *game = init_game(player); 
+        if (game == NULL) {
+            player->state = WAITING_GAME_CHOICE;
+            write_to_client(client_fd, GAME_FULL);
+            return;
+        }
+
+        player->state = WAITING_WORD;
         player->game = game;
 
         char code[5];
@@ -247,7 +253,7 @@ void handle_player(int client_fd) {
                 continue;
             } 
 
-            Game *game = find_game_by_code(code); // TODO: add helper in game.c
+            Game *game = find_game_by_code(code); 
 
             if (game != NULL && game->state == WAITING_FOR_PLAYER) {
                 add_player(player, game); 
@@ -288,6 +294,8 @@ void handle_player(int client_fd) {
                 write_to_client(player->fd, LENGTH); 
                 continue;
             }
+
+            Game *game = player->game;
             
             char *board = check_guess(player, msg);
             if (board == NULL) {
@@ -297,15 +305,21 @@ void handle_player(int client_fd) {
             update_board(player, board);
             free(board);
 
-            // check if word is same as player's word
-            if (check_correct_word(player, msg)) {
+            bool solved = check_correct_word(player, msg);
+            int guesses_used = (game->player1 == player) ? game->player1_guesses : game->player2_guesses;
+            bool out_of_guesses = (guesses_used >= MAX_GUESSES);
+
+            if (solved || out_of_guesses) {
                 player->state = WAITING_SCORE; 
-                write_to_client(player->fd, GUESSED_WORD);
+                if (solved) {
+                    write_to_client(player->fd, GUESSED_WORD);
+                } else {
+                    write_to_client(player->fd, OUT_OF_GUESSES);
+                }
                 
-                Game *game = player->game;
                 Player *opponent = (game->player1 == player) ? game->player2 : game->player1;
 
-                if (opponent->state == WAITING_SCORE) {
+                if (opponent != NULL && opponent->state == WAITING_SCORE) {
                     // Both players finished guessing
                     game->state = GAME_OVER;
                     finalize_scores(game); 
@@ -343,6 +357,13 @@ int main() {
         once client joins, use select to get client input
         handle_client based on player and game state 
     */
+
+    // Load dictionary once at server startup so is_valid_word has data.
+    load_word_bank("word.txt");
+    if (word_count == 0) {
+        fprintf(stderr, "server: word bank is empty\n");
+        exit(1);
+    }
 
     // random port
     struct sockaddr_in *self= init_server_addr(43465);

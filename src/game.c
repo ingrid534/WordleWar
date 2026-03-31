@@ -34,6 +34,18 @@ static int generate_join_code(void) {
 }
 
 Game *init_game(Player *player1) {
+    int slot = -1;
+    for (int i = 0; i < MAX_GAMES; i++) {
+        if (games[i] == NULL) {
+            slot = i;
+            break;
+        }
+    }
+
+    if (slot == -1) {
+        return NULL;
+    }
+
     Game *game = malloc(sizeof(Game));
     if (game == NULL) {
         perror("init_game: malloc");
@@ -47,12 +59,7 @@ Game *init_game(Player *player1) {
 
     player1->game = game;
 
-    for (int i = 0; i < MAX_GAMES; i++) {
-        if (games[i] == NULL) {
-            games[i] = game;
-            break;
-        }
-    }
+    games[slot] = game;
 
     return game;
 }
@@ -69,6 +76,14 @@ Game *find_game_by_code(int code) {
 void add_player(Player *player, Game *game) {
     game->player2 = player;
     player->game = game;
+
+    // If player1 already submitted player2's target, initialize late joiner state.
+    if (game->player2_word_length > 0) {
+        update_word(player, game->player2_word);
+        memset(player->board, '-', (size_t)game->player2_word_length);
+        player->board[game->player2_word_length] = '\0';
+    }
+
     game->state = WAITING_FOR_WORDS;
 }
 
