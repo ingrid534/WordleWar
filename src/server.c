@@ -342,7 +342,7 @@ int main() {
 
     // random port
     struct sockaddr_in *self= init_server_addr(43465);
-    int listenfd= set_up_server_socket(self, (MAX_SESSIONS) * 2);
+    int listenfd= set_up_server_socket(self, MAX_SESSIONS);
 
     int numfd = listenfd;
 

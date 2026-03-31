@@ -1,6 +1,4 @@
-cc = gcc
-flags = -Wall -Wextra -std=c11 -g -Iinclude
-ldflags =
+FLAGS = -Wall -g -Iinclude
 
 target = wordle
 client_target = wordle_client
@@ -10,13 +8,13 @@ client_obj = src/client.o
 
 .PHONY: clean all run client
 
-all: $(target)
+all: $(target) $(client_target)
 
 $(target): $(server_obj)
-	$(cc) $(flags) -o $@ $^ $(ldflags)
+	gcc $(FLAGS) -o $@ $^
 
 $(client_target): $(client_obj)
-	$(cc) $(flags) -o $@ $^ $(ldflags)
+	gcc $(FLAGS) -o $@ $^
 
 client: $(client_target)
 
@@ -27,7 +25,7 @@ src/words.o: include/words.h
 src/client.o: include/client.h include/protocol.h
 
 src/%.o: src/%.c
-	$(cc) $(flags) -c $< -o $@
+	gcc $(FLAGS) -c $< -o $@
 
 run: $(target)
 	./$(target)
