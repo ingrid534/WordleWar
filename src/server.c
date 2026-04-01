@@ -132,7 +132,7 @@ void read_client_msg(Player *player) {
                 opponent->game = NULL;
                 if (game->state != GAME_OVER) {
                     opponent->state = WAITING_GAME_CHOICE;
-                    write_to_client(opponent->fd, CHOICE);
+                    write_to_client(opponent->fd, PLAYER_DISCONNECT);
                 }
             }
             end_game(game);

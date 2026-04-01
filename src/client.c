@@ -47,15 +47,15 @@ int connect_to_server(int soc, int port, const char *hostname){
 
 }
 
-void prompt_name(int soc) {
+int prompt_name(int soc) {
     //Prompt user for name
     char name[BUFSIZE];
     fprintf(stdout, "Please enter your username: ");
     read_user_input(name, BUFSIZE);
-    write_to_server(soc, name, BUFSIZE);
+    return write_to_server(soc, name, BUFSIZE);
 }
 
-void give_game_choice(int soc) {
+int give_game_choice(int soc) {
     // send exactly one-character command: C or J
     char option[3];
     char input[BUFSIZE];
@@ -78,7 +78,7 @@ void give_game_choice(int soc) {
         fprintf(stdout, "Invalid selection. Enter exactly one letter: C or J.\n");
     }
 
-    write_to_server(soc, option, 3);
+    return write_to_server(soc, option, 3);
 }
 
 
@@ -87,7 +87,7 @@ void give_game_choice(int soc) {
 * should only have basic checking (make sure user input a number), server will check if it is correct code
 * and handle future calls to client
 */
-void prompt_code(int soc) {
+int prompt_code(int soc) {
     char user_input[BUFSIZE];
     fprintf(stdout, "Please enter game code: ");
     read_user_input(user_input, BUFSIZE);
@@ -105,14 +105,14 @@ void prompt_code(int soc) {
     snprintf(user_input, BUFSIZE, "%ld", code);
 
      // Write user input
-    write_to_server(soc, user_input, BUFSIZE);
+    return write_to_server(soc, user_input, BUFSIZE);
 
 }
 
 /*
 * Prompt user to input a word (for other player to guess) and send back to server.
 */
-void prompt_word(int soc){
+int prompt_word(int soc){
 
     char user_input[BUFSIZE];
     fprintf(stdout, "Please enter a word for your opponent to guess: ");
@@ -127,7 +127,7 @@ void prompt_word(int soc){
     }
 
     // Write user input
-    write_to_server(soc, user_input, BUFSIZE);
+    return write_to_server(soc, user_input, BUFSIZE);
 }
 
 /*
@@ -136,7 +136,7 @@ void prompt_word(int soc){
 * e.g. If "--A--e" is displayed, then we know "a" is the correct letter in the correct place, 
 * "e" is a letter in the word but in the wrong place, and the other letters were incorrect.
 */
-void prompt_guess(int soc, const char *server_msg){
+int prompt_guess(int soc, const char *server_msg){
     // Formatted string contains board and num guesses left separated by & - double check this
     // i.e. Board: --A--e & Number of Guesses Left: 10
     char msg_copy[BUFSIZE];
@@ -156,7 +156,7 @@ void prompt_guess(int soc, const char *server_msg){
     fprintf(stdout, "------------------------\n");
     read_user_input(guess, BUFSIZE);
 
-    write_to_server(soc, guess,BUFSIZE);
+    return write_to_server(soc, guess,BUFSIZE);
 
 }
 
@@ -219,7 +219,7 @@ void give_tie(int soc, const char *server_msg) {
     }
 }
 
-void write_to_server(int soc, char *msg, int msg_buffer_size){
+int write_to_server(int soc, char *msg, int msg_buffer_size){
     int len = (int)strlen(msg);
 
     // Strip any existing line ending so we always send exactly one CRLF.
@@ -238,10 +238,20 @@ void write_to_server(int soc, char *msg, int msg_buffer_size){
 
     // Send to server; does not include null termination character
     if(write(soc, msg, length_to_send)==-1){
-        perror("write");
-        exit(1);
+        fprintf(stderr, "Server disconnected.\n");
+        close(soc);
+        return -1;
     }
+    return 0;
 
+}
+
+/*
+* Notify player that their opponent disconnected and take them back to choice options.
+*/
+int give_disconnect(int soc) {
+    printf("Your opponent disconnected :(\n");
+    return give_game_choice(soc);
 }
 
 static int find_network_newline(const char *buf, int n) {
@@ -285,8 +295,9 @@ char *read_server_msg(int soc){
 
         int nread = read(soc, buf + inbuf, (size_t)(BUFSIZE - inbuf));
         if (nread == -1) {
-            perror("read");
-            exit(1);
+            fprintf(stderr, "Server disconnected.\n");
+            close(soc);
+            return NULL;
         }
         if (nread == 0) {
             return NULL;
@@ -320,29 +331,31 @@ int main(){
             break;
         }
 
+        int write_status = 0;
+
         if (strcmp(line_read, NAME) == 0) {
-            prompt_name(server_socket); 
+            write_status = prompt_name(server_socket); 
             free(line_read);
         } else if (strcmp(line_read, CHOICE) == 0) {
-            give_game_choice(server_socket);
+            write_status = give_game_choice(server_socket);
             free(line_read);
         } else if (strcmp(line_read, GAME_FULL) == 0) {
             printf("Game capacity full. Wait or join a game.\n");
-            give_game_choice(server_socket);
+            write_status = give_game_choice(server_socket);
             free(line_read);
         } else if (strcmp(line_read, CODE) == 0) {
-            prompt_code(server_socket);
+            write_status = prompt_code(server_socket);
             free(line_read);
         } else if(strcmp(line_read, INVALID_CODE) == 0){
             printf("Session does not exist.");
-            prompt_code(server_socket);
+            write_status = prompt_code(server_socket);
             free(line_read);
         } else if (strcmp(line_read, WORD) == 0) {
-            prompt_word(server_socket); 
+            write_status = prompt_word(server_socket); 
             free(line_read);
         } else if(strcmp(line_read, INVALID_WORD) == 0){
             printf("Word does not exist in game dictionary.");
-            prompt_word(server_socket); 
+            write_status = prompt_word(server_socket); 
             free(line_read);
         } else if (strcmp(line_read, WAIT_OPPONENT_WORD) == 0) {
             printf("Word submitted. Waiting for your opponent to submit their word.\n");
@@ -352,14 +365,14 @@ int main(){
             printf("\n");
             free(line_read);
             // After creating a game, server expects this client to submit a word next.
-            prompt_word(server_socket);
+            write_status = prompt_word(server_socket);
 
         } else if (strstr(line_read, BOARD) != NULL) { 
-            prompt_guess(server_socket, line_read); 
+            write_status = prompt_guess(server_socket, line_read); 
             free(line_read);
         } else if (strcmp(line_read, LENGTH) == 0) {
             printf("Invalid guess length. Please use the same number of letters as shown on the board.\n");
-            prompt_guess(server_socket, "");
+            write_status = prompt_guess(server_socket, "");
             free(line_read);
         } else if (strcmp(line_read, GUESSED_WORD) == 0) {
             give_correct_word(server_socket, line_read); // need to preserve back and forth
@@ -382,11 +395,19 @@ int main(){
             give_tie(server_socket, line_read);
             free(line_read);
             break;
+        } else if (strcmp(line_read, PLAYER_DISCONNECT) == 0) {
+            write_status = give_disconnect(server_socket);
+            free(line_read);
         } else {
             fprintf(stderr, "Unexpected message from server.");
             free(line_read);
             exit(1);
         }
+
+        if (write_status == -1) {
+            break;
+        }
     }
+    close(server_socket);
  
 }

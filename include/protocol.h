@@ -8,7 +8,6 @@
 #define CODE "code"
 #define CMD_CODE "code:"
 #define WORD "word"
-#define GAME_CODE "Session game code:" 
 #define INVALID_CODE "wrong code" 
 #define INVALID_WORD "bad_word" 
 #define GAME_FULL "game_full" 
@@ -17,7 +16,6 @@
 // signals for game play
 #define BOARD "board:" 
 #define WAIT_OPPONENT_WORD "wait_opponent_word" 
-
 #define GUESSED_WORD "guessed" 
 #define LENGTH "bad_length" 
 #define OUT_OF_GUESSES "out_of_guesses" 
@@ -27,6 +25,9 @@
 #define STAT_WIN "win:"
 #define STAT_LOST "lost:"
 #define STAT_TIE "tie:"
+
+// error handling
+#define PLAYER_DISCONNECT "player disconnected"
 
 // data
 #define BUFSIZE 256
