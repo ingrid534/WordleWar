@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 #include <unistd.h>
 #include <netdb.h>
 #include <sys/socket.h>
@@ -55,24 +56,34 @@ void prompt_name(int soc) {
     write_to_server(soc, name, BUFSIZE);
 }
 
+// static void lowercase_word(char *dst, const char *src, int length) {
+//     for (int i = 0; i < length; i++) {
+//         dst[i] = (char)tolower((unsigned char)src[i]);
+//     }
+//     dst[length] = '\0';
+// }
+
 void give_game_choice(int soc) {
     // send exactly one-character command: C or J
     char option[3];
     char input[BUFSIZE];
-    
-    //Get character from user
-    fprintf(stdout, "Please enter C to create a new game and J to join an existing game:  ");
-    read_user_input(input, BUFSIZE);
-    option[0] = input[0];
-    option[1] = '\0';
 
-    //Ensure they entered valid letter
-    while(strcmp(option, "J")!=0 && strcmp(option, "C")!=0 ){
-        fprintf(stdout, "Invalid selection \n");
-        fprintf(stdout, "Please enter C to create a new game or J to join an existing game: ");
+    while (1) {
+        fprintf(stdout, "Please enter C to create a new game or J to join an existing game:  ");
         read_user_input(input, BUFSIZE);
-        option[0] = input[0];
-        option[1] = '\0';
+
+        int len = strlen(input);
+        while (len > 0 && (input[len - 1] == '\n' || input[len - 1] == '\r')) {
+            input[--len] = '\0';
+        }
+
+        if (len == 1 && (input[0] == 'C' || input[0] == 'c' || input[0] == 'J' || input[0] == 'j')) {
+            option[0] = (input[0] == 'c') ? 'C' : (input[0] == 'j') ? 'J' : input[0];
+            option[1] = '\0';
+            break;
+        }
+
+        fprintf(stdout, "Invalid selection. Enter exactly one letter: C or J.\n");
     }
 
     write_to_server(soc, option, 3);
