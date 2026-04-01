@@ -146,11 +146,11 @@ void prompt_guess(int soc, const char *server_msg){
         printf("%s", num_guess_left + 1);
     }
     printf("%s", msg_copy);
-
     char guess[BUFSIZE];
     
     //Get guess from user
-    fprintf(stdout, "\n Please enter your guess. Capital letters mean letter is in correct spot. Lowercase letters mean letter is in the wrong spot: \n");
+    fprintf(stdout, "\nPlease enter your guess. Capital letters mean letter is in correct spot. Lowercase letters mean letter is in the wrong spot: \n");
+    fprintf(stdout, "------------------------\n");
     read_user_input(guess, BUFSIZE);
 
     write_to_server(soc, guess,BUFSIZE);
@@ -162,11 +162,10 @@ void prompt_guess(int soc, const char *server_msg){
 * This function will be called only when user is the last in the game to guess their word,
 * so no 'wait for the other player...' message is required.
 */
-void give_correct_word(int soc, const char* server_msg) {
-    printf("%s", server_msg); // Depends on how server sends the prompt
-    // Must send a message back to preserve back and forth
-    char response[BUFSIZE] = "Received";
-    write_to_server(soc, response,BUFSIZE);
+void give_correct_word(int soc, const char *server_msg) {
+    (void)soc;
+    (void)server_msg;
+    printf("You guessed the word!\n");
 }
 
 /*
@@ -174,15 +173,20 @@ void give_correct_word(int soc, const char* server_msg) {
 */
 void give_wait(int soc) {
     (void)soc;
-    printf("You guessed the word! Please wait for the other player to finish.");
+    printf("Please wait for the other player to finish.\n");
 }
 
 /*
 * Tell the user they won the game 
 */
 void give_win(int soc, const char * server_msg) {
+    (void)soc;
     char *score = strstr(server_msg, ":");
-    printf("You win! You scored %s.", score + 1);
+    if (score != NULL) {
+        printf("You win! You scored %s.\n", score + 1);
+    } else {
+        printf("You win!\n");
+    }
 
 }
 
@@ -190,16 +194,26 @@ void give_win(int soc, const char * server_msg) {
 * Tell the user they lost the game 
 */
 void give_lost(int soc, const char * server_msg) {
+    (void)soc;
     char *score = strstr(server_msg, ":");
-    printf("You lost! You scored: %s.", score + 1);
+    if (score != NULL) {
+        printf("You lost! You scored: %s.\n", score + 1);
+    } else {
+        printf("You lost!\n");
+    }
 }
 
 /*
 * Tell both users they tied
 */
 void give_tie(int soc, const char *server_msg) {
+    (void)soc;
     char *score = strstr(server_msg, ":");
-    printf("You tied! You both scored: %s.", score + 1);
+    if (score != NULL) {
+        printf("You tied! You both scored: %s.\n", score + 1);
+    } else {
+        printf("You tied!\n");
+    }
 }
 
 void write_to_server(int soc, char *msg, int msg_buffer_size){
@@ -227,38 +241,56 @@ void write_to_server(int soc, char *msg, int msg_buffer_size){
 
 }
 
-// This works because we expect the server to send 1 message at a time
-char *read_server_msg(int soc){
-    char *line = malloc(BUFSIZE);
-    //Check system call
-    if(line == NULL){
-        perror("malloc");
-        exit(1);
+static int find_network_newline(const char *buf, int n) {
+    for (int i = 0; i < n - 1; i++) {
+        if (buf[i] == '\r' && buf[i + 1] == '\n') {
+            return i;
+        }
     }
-    int num_bytes = read(soc, line, BUFSIZE-1);
-    // Check if read call failed
-    if(num_bytes == -1){
-        perror("read");
-        exit(1);
-    }
-    // Make result a string
-    line[num_bytes] = '\0';
+    return -1;
+}
 
-    // Read data until \r\n which indicates the end of a single message
-    while(strstr(line, "\r\n") == NULL){
-        int result = read(soc, &line[num_bytes], BUFSIZE - num_bytes);
-    
-        if(result == -1){
+char *read_server_msg(int soc){
+    static char buf[BUFSIZE];
+    static int inbuf = 0;
+
+    while (1) {
+        int where = find_network_newline(buf, inbuf);
+        if (where >= 0) {
+            char *line = malloc((size_t)where + 1);
+            if (line == NULL) {
+                perror("malloc");
+                exit(1);
+            }
+
+            memcpy(line, buf, (size_t)where);
+            line[where] = '\0';
+
+            int consumed = where + 2;
+            inbuf -= consumed;
+            if (inbuf > 0) {
+                memmove(buf, buf + consumed, (size_t)inbuf);
+            }
+
+            return line;
+        }
+
+        if (inbuf == BUFSIZE) {
+            fprintf(stderr, "client: message too long\n");
+            exit(1);
+        }
+
+        int nread = read(soc, buf + inbuf, (size_t)(BUFSIZE - inbuf));
+        if (nread == -1) {
             perror("read");
             exit(1);
         }
-        num_bytes += result;
+        if (nread == 0) {
+            return NULL;
+        }
 
-        line[num_bytes] = '\0';
-
+        inbuf += nread;
     }
-    line[num_bytes - 2] = '\0'; // replace \r\n with null terminator
-    return line;
 }
 
 
@@ -279,7 +311,11 @@ int main(){
 
     // Loop is infinite; eventually exits once the server prompts game has ended
     while (1) {
-        char *line_read = read_server_msg(server_socket); 
+        char *line_read = read_server_msg(server_socket);
+        if (line_read == NULL) {
+            fprintf(stderr, "Server closed the connection.\n");
+            break;
+        }
 
         if (strcmp(line_read, NAME) == 0) {
             prompt_name(server_socket); 
@@ -310,6 +346,7 @@ int main(){
             free(line_read);
         } else if(strstr(line_read, CMD_CODE) != NULL){
             printf("%s", line_read);
+            printf("\n");
             free(line_read);
             // After creating a game, server expects this client to submit a word next.
             prompt_word(server_socket);
