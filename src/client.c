@@ -1,7 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <ctype.h>
 #include <unistd.h>
 #include <netdb.h>
 #include <sys/socket.h>
@@ -55,13 +54,6 @@ void prompt_name(int soc) {
     read_user_input(name, BUFSIZE);
     write_to_server(soc, name, BUFSIZE);
 }
-
-// static void lowercase_word(char *dst, const char *src, int length) {
-//     for (int i = 0; i < length; i++) {
-//         dst[i] = (char)tolower((unsigned char)src[i]);
-//     }
-//     dst[length] = '\0';
-// }
 
 void give_game_choice(int soc) {
     // send exactly one-character command: C or J
