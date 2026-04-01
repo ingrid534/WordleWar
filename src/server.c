@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <signal.h>
 #include <unistd.h>
 #include <sys/socket.h>
 #include <sys/select.h>
@@ -87,9 +88,20 @@ int accept_connection(int listenfd) {
 
 void write_to_client(int client_fd, const char *msg) {
     char buf[1024];
-    sprintf(buf, "%s\r\n", msg);
+    snprintf(buf, sizeof(buf), "%s\r\n", msg);
 
-    if (write(client_fd, buf, strlen(buf)) == -1) {
+    int inbuf = 0;
+    int room = (int)strlen(buf);
+    char *after = buf;
+    ssize_t nbytes;
+
+    while ((nbytes = write(client_fd, after, (size_t)room)) > 0) {
+        inbuf += (int)nbytes;
+        room -= (int)nbytes;
+        after = &buf[inbuf];
+    }
+
+    if (nbytes == -1 || room > 0) {
         perror("server: write");
         exit(1);
     }
@@ -121,8 +133,13 @@ void read_client_msg(Player *player) {
     char *after = &player->buf[player->inbuf];
     int nbytes = read(player->fd, after, room);
     
-    if (nbytes == 0) {
-        printf("Client %d disconnected.\n", player->fd);
+    if (nbytes <= 0) {
+        if (nbytes == 0) {
+            printf("Client %d disconnected.\n", player->fd);
+        } else {
+            perror("server: read");
+            printf("Treating read error from client %d as disconnect.\n", player->fd);
+        }
 
         // if client was in a game, handle other player
         Game *game = player->game;
@@ -142,9 +159,6 @@ void read_client_msg(Player *player) {
         close(fd);
         remove_player(player);
         clients[fd] = NULL;
-        return;
-    } else if (nbytes < 0) {
-        perror("server: read");
         return;
     }
     player->inbuf += nbytes;
@@ -406,6 +420,8 @@ int main() {
         exit(1);
     }
 
+    signal(SIGPIPE, SIG_IGN);
+
     // random port
     struct sockaddr_in *self= init_server_addr(43465);
     int listenfd= set_up_server_socket(self, MAX_SESSIONS);
@@ -433,11 +449,17 @@ int main() {
         // check which ones are actually ready
         if (FD_ISSET(listenfd, &read_fds)) {
             int client_fd = accept_connection(listenfd); 
-            clients[client_fd] = init_player(client_fd);
-            write_to_client(client_fd, NAME);
+            Player *new_player = init_player(client_fd);
+            if (new_player == NULL) {
+                fprintf(stderr, "server: failed to allocate player for fd %d\n", client_fd);
+                close(client_fd);
+            } else {
+                clients[client_fd] = new_player;
+                write_to_client(client_fd, NAME);
 
-            if (client_fd > numfd) {
-                numfd = client_fd;
+                if (client_fd > numfd) {
+                    numfd = client_fd;
+                }
             }
         }
 
