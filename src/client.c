@@ -50,7 +50,7 @@ int connect_to_server(int soc, int port, const char *hostname){
 void prompt_name(int soc) {
     //Prompt user for name
     char name[BUFSIZE];
-    fprintf(stdout, "Please enter your username:");
+    fprintf(stdout, "Please enter your username: ");
     read_user_input(name, BUFSIZE);
     write_to_server(soc, name, BUFSIZE);
 }
@@ -61,21 +61,21 @@ void give_game_choice(int soc) {
     char input[BUFSIZE];
     
     //Get character from user
-    fprintf(stdout, "Please enter C to create a new game and J to join an existing game: ");
+    fprintf(stdout, "Please enter C to create a new game and J to join an existing game:  ");
     read_user_input(input, BUFSIZE);
     option[0] = input[0];
     option[1] = '\0';
 
     //Ensure they entered valid letter
     while(strcmp(option, "J")!=0 && strcmp(option, "C")!=0 ){
-        fprintf(stdout, "Invalid Selection ");
+        fprintf(stdout, "Invalid selection \n");
         fprintf(stdout, "Please enter C to create a new game or J to join an existing game: ");
         read_user_input(input, BUFSIZE);
         option[0] = input[0];
         option[1] = '\0';
     }
 
-    write_to_server(soc, option,3);
+    write_to_server(soc, option, 3);
 }
 
 
@@ -86,15 +86,15 @@ void give_game_choice(int soc) {
 */
 void prompt_code(int soc) {
     char user_input[BUFSIZE];
-    fprintf(stdout, "Please enter game code:");
+    fprintf(stdout, "Please enter game code: ");
     read_user_input(user_input, BUFSIZE);
 
     char *end;
     long code = strtol(user_input, &end, 10);
 
     while(user_input == end){
-        fprintf(stdout, "Try again. Code must be a number. ");
-        fprintf(stdout, "Please enter game code:");
+        fprintf(stdout, "Try again. Code must be a number.\n");
+        fprintf(stdout, "Please enter game code: ");
         read_user_input(user_input, BUFSIZE);
         code = strtol(user_input, &end, 10);
     }
@@ -112,14 +112,14 @@ void prompt_code(int soc) {
 void prompt_word(int soc){
 
     char user_input[BUFSIZE];
-    fprintf(stdout, "Please enter a word for your opponent to guess:");
+    fprintf(stdout, "Please enter a word for your opponent to guess: ");
     read_user_input(user_input, BUFSIZE);
 
 
     // Ensure word is of valid length
     while(strlen(user_input) > 8 || strlen(user_input) < 5){
         fprintf(stdout, "Try again. Proposed word must be in between 5 to 8 characters. ");
-        fprintf(stdout, "Please enter a word for your opponent to guess:");
+        fprintf(stdout, "Please enter a word for your opponent to guess: ");
         read_user_input(user_input, BUFSIZE);
     }
 
@@ -150,7 +150,7 @@ void prompt_guess(int soc, const char *server_msg){
     char guess[BUFSIZE];
     
     //Get guess from user
-    fprintf(stdout, "Please enter your guess. Capital letters mean letter is in correct spot. Lowercase letters mean letter is in the wrong spot:");
+    fprintf(stdout, "\n Please enter your guess. Capital letters mean letter is in correct spot. Lowercase letters mean letter is in the wrong spot: \n");
     read_user_input(guess, BUFSIZE);
 
     write_to_server(soc, guess,BUFSIZE);
@@ -311,11 +311,10 @@ int main(){
         } else if(strstr(line_read, CMD_CODE) != NULL){
             printf("%s", line_read);
             free(line_read);
-            // Must send a message back to preserve back and forth
-            char response[BUFSIZE] = "Received";
-            write_to_server(server_socket, response,BUFSIZE);
+            // After creating a game, server expects this client to submit a word next.
+            prompt_word(server_socket);
 
-        } else if (strstr(line_read, BOARD) != NULL) { // TODO: use strstr
+        } else if (strstr(line_read, BOARD) != NULL) { 
             prompt_guess(server_socket, line_read); 
             free(line_read);
         } else if (strcmp(line_read, GUESSED_WORD) == 0) {
