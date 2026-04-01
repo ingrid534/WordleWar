@@ -354,6 +354,10 @@ int main(){
         } else if (strstr(line_read, BOARD) != NULL) { 
             prompt_guess(server_socket, line_read); 
             free(line_read);
+        } else if (strcmp(line_read, LENGTH) == 0) {
+            printf("Invalid guess length. Please use the same number of letters as shown on the board.\n");
+            prompt_guess(server_socket, "");
+            free(line_read);
         } else if (strcmp(line_read, GUESSED_WORD) == 0) {
             give_correct_word(server_socket, line_read); // need to preserve back and forth
             free(line_read);
