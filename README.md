@@ -9,15 +9,15 @@
 - [x] implement player data/updates (player.c)
     - this is pretty straightforward since the functions in player.h will just be called by server.c or client.c
 - [x] implement game rules/updates (game.c)
-- [ ] main game flow (also in server.c)
+- [x] main game flow (also in server.c)
     - will add once some of main files are implemented
 - [x] set up for word bank (words.c)
 - [ ] testing
 
 ##### Design
 - [x] 5-8 letter words (plus the new game rules that come with it)
-- [ ] ability to do multiple rounds per game ? 
-    - we can think about this once we get started and get a better idea of the scope
+- [ ] ~~ability to do multiple rounds per game ?~~
+    - ~~we can think about this once we get started and get a better idea of the scope~~
 
 ##### Misc
 - [x] find word bank for words file
