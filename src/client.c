@@ -229,48 +229,36 @@ void write_to_server(int soc, char *msg, int msg_buffer_size){
 
 // This works because we expect the server to send 1 message at a time
 char *read_server_msg(int soc){
-    static char pending[BUFSIZE];
-    static int pending_len = 0;
+    char *line = malloc(BUFSIZE);
+    //Check system call
+    if(line == NULL){
+        perror("malloc");
+        exit(1);
+    }
+    int num_bytes = read(soc, line, BUFSIZE-1);
+    // Check if read call failed
+    if(num_bytes == -1){
+        perror("read");
+        exit(1);
+    }
+    // Make result a string
+    line[num_bytes] = '\0';
 
-    while (1) {
-        for (int i = 0; i < pending_len - 1; i++) {
-            if (pending[i] == '\r' && pending[i + 1] == '\n') {
-                char *line = malloc((size_t)i + 1);
-                if (line == NULL) {
-                    perror("malloc");
-                    exit(1);
-                }
-
-                memcpy(line, pending, (size_t)i);
-                line[i] = '\0';
-
-                int consumed = i + 2;
-                pending_len -= consumed;
-                memmove(pending, pending + consumed, (size_t)pending_len);
-
-                return line;
-            }
-        }
-
-        int room = BUFSIZE - 1 - pending_len;
-        if (room <= 0) {
-            fprintf(stderr, "client: incoming message too long\n");
-            exit(1);
-        }
-
-        int result = read(soc, pending + pending_len, (size_t)room);
-        if (result == -1) {
+    // Read data until \r\n which indicates the end of a single message
+    while(strstr(line, "\r\n") == NULL){
+        int result = read(soc, &line[num_bytes], BUFSIZE - num_bytes);
+    
+        if(result == -1){
             perror("read");
             exit(1);
         }
-        if (result == 0) {
-            fprintf(stderr, "server disconnected\n");
-            exit(1);
-        }
+        num_bytes += result;
 
-        pending_len += result;
+        line[num_bytes] = '\0';
+
     }
-
+    line[num_bytes - 2] = '\0'; // replace \r\n with null terminator
+    return line;
 }
 
 

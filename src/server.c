@@ -124,6 +124,20 @@ void read_client_msg(Player *player) {
     if (nbytes == 0) {
         printf("Client %d disconnected.\n", player->fd);
 
+        // if client was in a game, handle other player
+        Game *game = player->game;
+        if (game != NULL) {
+            Player *opponent = (game->player1 == player) ? game->player2 : game->player1;
+            if (opponent != NULL) {
+                opponent->game = NULL;
+                if (game->state != GAME_OVER) {
+                    opponent->state = WAITING_GAME_CHOICE;
+                    write_to_client(opponent->fd, CHOICE);
+                }
+            }
+            end_game(game);
+        }
+
         int fd = player->fd;
         close(fd);
         remove_player(player);
@@ -352,6 +366,14 @@ void handle_player(int client_fd) {
                         write_status_with_score(game->player1->fd, STAT_TIE, game->player1_score);
                         write_status_with_score(game->player2->fd, STAT_TIE, game->player1_score);
                     }
+
+                    if (game->player1 != NULL) {
+                        game->player1->game = NULL;
+                    }
+                    if (game->player2 != NULL) {
+                        game->player2->game = NULL;
+                    }
+                    end_game(game);
                 } else {
                     // Opponent is still guessing
                     write_to_client(player->fd, STAT_WAIT);
