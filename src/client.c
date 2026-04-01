@@ -2,11 +2,19 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <netdb.h>
 #include <sys/socket.h>
 #include <netinet/in.h>    /* Internet domain header */
 #include <arpa/inet.h>   /* inet_ntoa() - might only need on mac */ 
-#include "_CLIENT_H_"
-#include "PROTOCOL_H"
+#include "client.h"
+#include "protocol.h"
+
+static void read_user_input(char *buf, int size) {
+    if (fgets(buf, size, stdin) == NULL) {
+        fprintf(stderr, "client: input closed\n");
+        exit(1);
+    }
+}
 
 
 // Clients connect to server
@@ -20,7 +28,7 @@ int connect_to_server(int soc, int port, const char *hostname){
     //Find IP address of hostname
     struct addrinfo *ai;
     // Call populates list
-    getaddrinfo(hostname, NULL, NULL, &ai)
+    getaddrinfo(hostname, NULL, NULL, &ai);
 
     // Want first element in the list
     server.sin_addr = ((struct sockaddr_in *)ai -> ai_addr)->sin_addr;
@@ -42,27 +50,35 @@ int connect_to_server(int soc, int port, const char *hostname){
 void prompt_name(int soc) {
     //Prompt user for name
     char name[BUFSIZE];
-    fprintf(stdout, "Please enter your username:")
-    fgets(buf, BUFSIZE, stdin);
-    write_to_server(server_socket, buf, BUFSIZE);
+    fprintf(stdout, "Please enter your username: ");
+    read_user_input(name, BUFSIZE);
+    write_to_server(soc, name, BUFSIZE);
 }
 
 void give_game_choice(int soc) {
-    // Space for 3 characters; adding end of line characters after
+    // send exactly one-character command: C or J
     char option[3];
-    
-    //Get character from user
-    fprintf(stdout, "Please enter C to create a new game and J to join an existing game: ");
-    fgets(option, 2, stdin); // Space for null terminator and character
+    char input[BUFSIZE];
 
-    //Ensure they entered valid letter
-    while(strcmp(guess, "J")!=0 && strcmp(guess, "C")!=0 ){
-        fprintf(stdout, "Invalid Selection ");
-        fprintf(stdout, "Please enter C to create a new game or J to join an existing game: ");
-        fgets(option, 2, stdin); // Space for null terminator and character
+    while (1) {
+        fprintf(stdout, "Please enter C to create a new game or J to join an existing game:  ");
+        read_user_input(input, BUFSIZE);
+
+        int len = strlen(input);
+        while (len > 0 && (input[len - 1] == '\n' || input[len - 1] == '\r')) {
+            input[--len] = '\0';
+        }
+
+        if (len == 1 && (input[0] == 'C' || input[0] == 'c' || input[0] == 'J' || input[0] == 'j')) {
+            option[0] = (input[0] == 'c') ? 'C' : (input[0] == 'j') ? 'J' : input[0];
+            option[1] = '\0';
+            break;
+        }
+
+        fprintf(stdout, "Invalid selection. Enter exactly one letter: C or J.\n");
     }
 
-    write_to_server(soc, option,3);
+    write_to_server(soc, option, 3);
 }
 
 
@@ -73,16 +89,16 @@ void give_game_choice(int soc) {
 */
 void prompt_code(int soc) {
     char user_input[BUFSIZE];
-    fprintf("Please enter game code:");
-    fgets(user_input, BUFSIZE, stdin);
+    fprintf(stdout, "Please enter game code: ");
+    read_user_input(user_input, BUFSIZE);
 
     char *end;
     long code = strtol(user_input, &end, 10);
 
     while(user_input == end){
-        fprintf(stdout, "Try again. Code must be a number. ");
-        fprintf("Please enter game code:");
-        fgets(user_input, BUFSIZE, stdin);
+        fprintf(stdout, "Try again. Code must be a number.\n");
+        fprintf(stdout, "Please enter game code: ");
+        read_user_input(user_input, BUFSIZE);
         code = strtol(user_input, &end, 10);
     }
 
@@ -99,15 +115,15 @@ void prompt_code(int soc) {
 void prompt_word(int soc){
 
     char user_input[BUFSIZE];
-    fprintf("Please enter a word for your opponent to guess:");
-    fgets(user_input, BUFSIZE, stdin);
+    fprintf(stdout, "Please enter a word for your opponent to guess: ");
+    read_user_input(user_input, BUFSIZE);
 
 
     // Ensure word is of valid length
-    while(strlen(user_input) > 8 || strlen(user_input < 5)){
+    while(strlen(user_input) > 8 || strlen(user_input) < 5){
         fprintf(stdout, "Try again. Proposed word must be in between 5 to 8 characters. ");
-        fprintf("Please enter a word for your opponent to guess:");
-        fgets(user_input, BUFSIZE, stdin);
+        fprintf(stdout, "Please enter a word for your opponent to guess: ");
+        read_user_input(user_input, BUFSIZE);
     }
 
     // Write user input
@@ -120,20 +136,25 @@ void prompt_word(int soc){
 * e.g. If "--A--e" is displayed, then we know "a" is the correct letter in the correct place, 
 * "e" is a letter in the word but in the wrong place, and the other letters were incorrect.
 */
-void prompt_guess(int soc, char* server_msg){
+void prompt_guess(int soc, const char *server_msg){
     // Formatted string contains board and num guesses left separated by & - double check this
     // i.e. Board: --A--e & Number of Guesses Left: 10
-    char *num_guess_left = strstr(server_msg, "&");
-    *num_guess_left = '\0';
+    char msg_copy[BUFSIZE];
+    strncpy(msg_copy, server_msg, BUFSIZE - 1);
+    msg_copy[BUFSIZE - 1] = '\0';
 
-    printf("%s", num_guess_left + 1);
-    printf("%s", server_msg)
-
+    char *num_guess_left = strstr(msg_copy, "&");
+    if (num_guess_left != NULL) {
+        *num_guess_left = '\0';
+        printf("%s", num_guess_left + 1);
+    }
+    printf("%s", msg_copy);
     char guess[BUFSIZE];
     
     //Get guess from user
-    fprintf(stdout, "Please enter your guess. Capital letters mean letter is in correct spot. Lowercase letters mean letter is in the wrong spot:");
-    fgets(guess, BUFSIZE, stdin);
+    fprintf(stdout, "\nPlease enter your guess. Capital letters mean letter is in correct spot. Lowercase letters mean letter is in the wrong spot: \n");
+    fprintf(stdout, "------------------------\n");
+    read_user_input(guess, BUFSIZE);
 
     write_to_server(soc, guess,BUFSIZE);
 
@@ -144,59 +165,76 @@ void prompt_guess(int soc, char* server_msg){
 * This function will be called only when user is the last in the game to guess their word,
 * so no 'wait for the other player...' message is required.
 */
-void give_correct_word(int soc, char* server_msg) {
-    printf(server_msg); // Depends on how server sends the prompt
-    // Must send a message back to preserve back and forth
-    char response[BUFSIZE] = "Received";
-    write_to_server(server_socket, response,BUFSIZE);
+void give_correct_word(int soc, const char *server_msg) {
+    (void)soc;
+    (void)server_msg;
+    printf("You guessed the word!\n");
 }
 
 /*
 * Tell user they guessed correct word and must wait for the other player to finish.
 */
 void give_wait(int soc) {
-    printf("You guessed the word! Please wait for the other player to finish.");
-    // Must send a message back to preserve back and forth
-    char response[BUFSIZE] = "Received";
-    write_to_server(server_socket, response,BUFSIZE);
+    (void)soc;
+    printf("Please wait for the other player to finish.\n");
 }
 
 /*
-* Tell the user they won the game (plus score...?)
+* Tell the user they won the game 
 */
-void give_win(int soc, char * server_msg) {
+void give_win(int soc, const char * server_msg) {
+    (void)soc;
     char *score = strstr(server_msg, ":");
-    printf("You win! You took %s guesses.", score + 1);
-    exit(1); // SHOULD WE EXIT; TO DO
+    if (score != NULL) {
+        printf("You win! You scored %s.\n", score + 1);
+    } else {
+        printf("You win!\n");
+    }
 
 }
 
 /*
-* Tell the user they lost the game (plus score...?)
+* Tell the user they lost the game 
 */
-void give_lost(int soc, char * server_msg) {
+void give_lost(int soc, const char * server_msg) {
+    (void)soc;
     char *score = strstr(server_msg, ":");
-    printf("You lost! You took %s guesses.", score + 1);
-    exit(1); // SHOULD WE EXIT; TO DO
+    if (score != NULL) {
+        printf("You lost! You scored: %s.\n", score + 1);
+    } else {
+        printf("You lost!\n");
+    }
+}
+
+/*
+* Tell both users they tied
+*/
+void give_tie(int soc, const char *server_msg) {
+    (void)soc;
+    char *score = strstr(server_msg, ":");
+    if (score != NULL) {
+        printf("You tied! You both scored: %s.\n", score + 1);
+    } else {
+        printf("You tied!\n");
+    }
 }
 
 void write_to_server(int soc, char *msg, int msg_buffer_size){
-    // Appending end of line characters
-    int length_to_send;
-    if(strlen(msg) >= msg_buffer_size - 1){
-        //if msg fills up most of the buffer, we must delete the last 2 characters
-        msg[msg_buffer_size -1 ] = "\n";
-        msg[msg_buffer_size -2 ] = "\r";
-        length_to_send = msg_buffer_size;
+    int len = (int)strlen(msg);
 
+    // Strip any existing line ending so we always send exactly one CRLF.
+    while (len > 0 && (msg[len - 1] == '\n' || msg[len - 1] == '\r')) {
+        len--;
     }
-    else {
-        int len = strlen(msg);
-        msg[len] = "\n"; //Re
-        msg[len + 1 ] = "\r";
-        length_to_send = len + 1;
 
+    if (len > msg_buffer_size - 2) {
+        len = msg_buffer_size - 2;
     }
+
+    msg[len] = '\r';
+    msg[len + 1] = '\n';
+
+    int length_to_send = len + 2;
 
     // Send to server; does not include null termination character
     if(write(soc, msg, length_to_send)==-1){
@@ -206,40 +244,56 @@ void write_to_server(int soc, char *msg, int msg_buffer_size){
 
 }
 
-// This works because we expect the server to send 1 message at a time
-char *read_server_msg(int soc){
-    char *line = malloc(BUFSIZE);
-    //Check system call
-    if(line == NULL){
-        perror("malloc");
-        exit(1);
+static int find_network_newline(const char *buf, int n) {
+    for (int i = 0; i < n - 1; i++) {
+        if (buf[i] == '\r' && buf[i + 1] == '\n') {
+            return i;
+        }
     }
-    int num_bytes = read(soc, line, BUFSIZE-1);
-    // Check if read call failed
-    if(num_bytes == -1){
-        perror("read");
-        exit(1);
-    }
-    // Make result a string
-    line[num_bytes] = '\0';
+    return -1;
+}
 
-    // Read data until \r\n which indicates the end of a single message
-    while(strstr(line, "\r\n") == NULL){
-        int result = read(soc, &line[num_bytes], MAX_BUF - num_bytes);
-        // TODO: what is max_buf?
-    
-        if(result == -1){
+char *read_server_msg(int soc){
+    static char buf[BUFSIZE];
+    static int inbuf = 0;
+
+    while (1) {
+        int where = find_network_newline(buf, inbuf);
+        if (where >= 0) {
+            char *line = malloc((size_t)where + 1);
+            if (line == NULL) {
+                perror("malloc");
+                exit(1);
+            }
+
+            memcpy(line, buf, (size_t)where);
+            line[where] = '\0';
+
+            int consumed = where + 2;
+            inbuf -= consumed;
+            if (inbuf > 0) {
+                memmove(buf, buf + consumed, (size_t)inbuf);
+            }
+
+            return line;
+        }
+
+        if (inbuf == BUFSIZE) {
+            fprintf(stderr, "client: message too long\n");
+            exit(1);
+        }
+
+        int nread = read(soc, buf + inbuf, (size_t)(BUFSIZE - inbuf));
+        if (nread == -1) {
             perror("read");
             exit(1);
         }
-        num_bytes += result;
+        if (nread == 0) {
+            return NULL;
+        }
 
-        line[num_bytes] = '\0';
-
+        inbuf += nread;
     }
-    line[num_chars - 2] = '\0'; // replace \r\n with null terminator
-    return line;
-
 }
 
 
@@ -252,7 +306,7 @@ int main(){
     }
 
     // Connect with server; only returns if connection successful
-    connect_to_server(server_socket, 43465, "teach.cs.toronto.edu");
+    connect_to_server(server_socket, 43465, "localhost");
 
         // client reads_server_msg
         // client checks which prompt
@@ -260,12 +314,20 @@ int main(){
 
     // Loop is infinite; eventually exits once the server prompts game has ended
     while (1) {
-        char *line_read = read_server_msg(server_socket); 
+        char *line_read = read_server_msg(server_socket);
+        if (line_read == NULL) {
+            fprintf(stderr, "Server closed the connection.\n");
+            break;
+        }
 
         if (strcmp(line_read, NAME) == 0) {
             prompt_name(server_socket); 
             free(line_read);
         } else if (strcmp(line_read, CHOICE) == 0) {
+            give_game_choice(server_socket);
+            free(line_read);
+        } else if (strcmp(line_read, GAME_FULL) == 0) {
+            printf("Game capacity full. Wait or join a game.\n");
             give_game_choice(server_socket);
             free(line_read);
         } else if (strcmp(line_read, CODE) == 0) {
@@ -282,28 +344,42 @@ int main(){
             printf("Word does not exist in game dictionary.");
             prompt_word(server_socket); 
             free(line_read);
-        } else if(strstr(line_read, GAME_CODE) != NULL){
-            printf(line_read);
+        } else if (strcmp(line_read, WAIT_OPPONENT_WORD) == 0) {
+            printf("Word submitted. Waiting for your opponent to submit their word.\n");
             free(line_read);
-            // Must send a message back to preserve back and forth
-            char response[BUFSIZE] = "Received";
-            write_to_server(server_socket, response,BUFSIZE);
+        } else if(strstr(line_read, CMD_CODE) != NULL){
+            printf("%s", line_read);
+            printf("\n");
+            free(line_read);
+            // After creating a game, server expects this client to submit a word next.
+            prompt_word(server_socket);
 
-        } else if (strstr(line_read, BOARD) != NULL) { // TODO: use strstr
-            prompt_guess(server_socket); 
+        } else if (strstr(line_read, BOARD) != NULL) { 
+            prompt_guess(server_socket, line_read); 
+            free(line_read);
+        } else if (strcmp(line_read, LENGTH) == 0) {
+            printf("Invalid guess length. Please use the same number of letters as shown on the board.\n");
+            prompt_guess(server_socket, "");
             free(line_read);
         } else if (strcmp(line_read, GUESSED_WORD) == 0) {
-            give_correct_word(server_socket); // need to preserve back and forth
+            give_correct_word(server_socket, line_read); // need to preserve back and forth
+            free(line_read);
+        } else if (strcmp(line_read, OUT_OF_GUESSES) == 0) {
+            printf("You are out of guesses. Waiting for the other player to finish.\n");
             free(line_read);
         } else if (strcmp(line_read, STAT_WAIT) == 0) { // need to preserve back and forth
             give_wait(server_socket); 
             free(line_read);
         } else if (strstr(line_read, STAT_WIN) != NULL) { 
-            give_win(server_socket); 
+            give_win(server_socket, line_read); 
             free(line_read);
             break;
         } else if (strstr(line_read, STAT_LOST) != NULL) { 
-            give_lost(server_socket); 
+            give_lost(server_socket, line_read); 
+            free(line_read);
+            break;
+        } else if (strstr(line_read, STAT_TIE) != NULL) { 
+            give_tie(server_socket, line_read);
             free(line_read);
             break;
         } else {

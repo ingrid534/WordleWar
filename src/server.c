@@ -11,6 +11,7 @@
 #include "player.h"
 #include "game.h"
 #include "protocol.h"
+#include "words.h"
 
 #define MAX_SESSIONS 50
 
@@ -122,7 +123,25 @@ void read_client_msg(Player *player) {
     
     if (nbytes == 0) {
         printf("Client %d disconnected.\n", player->fd);
-        // TODO: handle player disconnect here (close fd, free memory, etc.)
+
+        // if client was in a game, handle other player
+        Game *game = player->game;
+        if (game != NULL) {
+            Player *opponent = (game->player1 == player) ? game->player2 : game->player1;
+            if (opponent != NULL) {
+                opponent->game = NULL;
+                if (game->state != GAME_OVER) {
+                    opponent->state = WAITING_GAME_CHOICE;
+                    write_to_client(opponent->fd, CHOICE);
+                }
+            }
+            end_game(game);
+        }
+
+        int fd = player->fd;
+        close(fd);
+        remove_player(player);
+        clients[fd] = NULL;
         return;
     } else if (nbytes < 0) {
         perror("server: read");
@@ -157,7 +176,7 @@ char *extract_msg(Player *player) {
 /*
 * Concatenate the two strings into a new message.
 */
-char *generate_msg(char *a, char *b) {
+char *generate_msg(const char *a, const char *b) {
     if (a == NULL || b == NULL) {
         return NULL; 
     }
@@ -176,6 +195,19 @@ char *generate_msg(char *a, char *b) {
     return msg;
 }
 
+void write_status_with_score(int client_fd, const char *status_prefix, int score) {
+    char score_buf[12];
+    snprintf(score_buf, sizeof(score_buf), "%d", score);
+
+    char *msg = generate_msg(status_prefix, score_buf);
+    if (msg == NULL) {
+        return;
+    }
+
+    write_to_client(client_fd, msg);
+    free(msg);
+}
+
 /*
 * Handle player's input game choice
 * If player says 'J', prompt for join code
@@ -189,9 +221,14 @@ void handle_choice(int client_fd, char *choice) {
         player->state = WAITING_CODE;
         return;
     } else if (strcmp(choice, "C") == 0) {
-        player->state = WAITING_WORD;
-        
         Game *game = init_game(player); 
+        if (game == NULL) {
+            player->state = WAITING_GAME_CHOICE;
+            write_to_client(client_fd, GAME_FULL);
+            return;
+        }
+
+        player->state = WAITING_WORD;
         player->game = game;
 
         char code[5];
@@ -243,7 +280,7 @@ void handle_player(int client_fd) {
                 continue;
             } 
 
-            Game *game = find_game_by_code(code); // TODO: add helper in game.c
+            Game *game = find_game_by_code(code); 
 
             if (game != NULL && game->state == WAITING_FOR_PLAYER) {
                 add_player(player, game); 
@@ -256,13 +293,13 @@ void handle_player(int client_fd) {
 
         } else if (state == WAITING_WORD) {
             if (is_valid_word(msg) && set_word(player, msg)) {
-                player->state = WAITING_GUESS;
-                
                 Game *game = player->game;
                 Player *opponent = (game->player1 == player) ? game->player2 : game->player1;
 
-                // Check if second player is here and already submitted their word
-                if (opponent != NULL && opponent->state == WAITING_GUESS) {
+                // Guessing starts only after both players have submitted words.
+                if (opponent != NULL && opponent->state == WAITING_OPPONENT_WORD) {
+                    player->state = WAITING_GUESS;
+                    opponent->state = WAITING_GUESS;
                     game->state = IN_PROGRESS;
                     
                     char *signal1 = generate_msg(BOARD, game->player1->board);
@@ -273,17 +310,23 @@ void handle_player(int client_fd) {
                     write_to_client(game->player2->fd, signal2);
                     free(signal2);
                 } else {
-                    write_to_client(player->fd, STAT_WAIT);
+                    player->state = WAITING_OPPONENT_WORD;
+                    write_to_client(player->fd, WAIT_OPPONENT_WORD);
                 }
             } else {
                 write_to_client(player->fd, WORD); 
             }
+
+        } else if (state == WAITING_OPPONENT_WORD) {
+            write_to_client(player->fd, WAIT_OPPONENT_WORD);
 
         } else if (state == WAITING_GUESS) {
             if (strlen(msg) != strlen(player->word)) {
                 write_to_client(player->fd, LENGTH); 
                 continue;
             }
+
+            Game *game = player->game;
             
             char *board = check_guess(player, msg);
             if (board == NULL) {
@@ -293,28 +336,44 @@ void handle_player(int client_fd) {
             update_board(player, board);
             free(board);
 
-            // check if word is same as player's word
-            if (check_correct_word(player, msg)) {
+            bool solved = check_correct_word(player, msg);
+            int guesses_used = (game->player1 == player) ? game->player1_guesses : game->player2_guesses;
+            bool out_of_guesses = (guesses_used >= MAX_GUESSES);
+
+            if (solved || out_of_guesses) {
                 player->state = WAITING_SCORE; 
-                write_to_client(player->fd, GUESSED_WORD);
+                if (solved) {
+                    write_to_client(player->fd, GUESSED_WORD);
+                } else {
+                    write_to_client(player->fd, OUT_OF_GUESSES);
+                }
                 
-                Game *game = player->game;
                 Player *opponent = (game->player1 == player) ? game->player2 : game->player1;
 
-                if (opponent->state == WAITING_SCORE) {
+                if (opponent != NULL && opponent->state == WAITING_SCORE) {
                     // Both players finished guessing
                     game->state = GAME_OVER;
                     finalize_scores(game); 
                     // Compare scores (guess counts) and send win/lose 
                     if (game->player1_score > game->player2_score) {
-                        write_to_client(game->player1->fd, STAT_WIN);
-                        write_to_client(game->player2->fd, STAT_LOSE);
+                        write_status_with_score(game->player1->fd, STAT_WIN, game->player1_score);
+                        write_status_with_score(game->player2->fd, STAT_LOST, game->player2_score);
+
                     } else if (game->player2_score > game->player1_score) {
-                        write_to_client(game->player2->fd, STAT_WIN);
-                        write_to_client(game->player1->fd, STAT_LOSE);
+                        write_status_with_score(game->player2->fd, STAT_WIN, game->player2_score);
+                        write_status_with_score(game->player1->fd, STAT_LOST, game->player1_score);
                     } else {
-                        // TODO: handle ties - make STAT_TIE? 
+                        write_status_with_score(game->player1->fd, STAT_TIE, game->player1_score);
+                        write_status_with_score(game->player2->fd, STAT_TIE, game->player1_score);
                     }
+
+                    if (game->player1 != NULL) {
+                        game->player1->game = NULL;
+                    }
+                    if (game->player2 != NULL) {
+                        game->player2->game = NULL;
+                    }
+                    end_game(game);
                 } else {
                     // Opponent is still guessing
                     write_to_client(player->fd, STAT_WAIT);
@@ -339,6 +398,13 @@ int main() {
         once client joins, use select to get client input
         handle_client based on player and game state 
     */
+
+    // Load dictionary once at server startup so is_valid_word has data.
+    load_word_bank("word.txt");
+    if (word_count == 0) {
+        fprintf(stderr, "server: word bank is empty\n");
+        exit(1);
+    }
 
     // random port
     struct sockaddr_in *self= init_server_addr(43465);
@@ -379,7 +445,9 @@ int main() {
         for (int fd = 0; fd <= numfd; fd++) {
             if (clients[fd] != NULL && FD_ISSET(fd, &read_fds)) {
                 read_client_msg(clients[fd]);
-                handle_player(fd);
+                if (clients[fd] != NULL) {
+                    handle_player(fd);
+                }
             }
         } 
     }
