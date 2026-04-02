@@ -2,8 +2,7 @@
 #ifndef PLAYER_H
 #define PLAYER_H
 #include "protocol.h"
-
-#define MAX_WORD_LENGTH 8
+#include "game.h"
 
 typedef struct game Game;
 

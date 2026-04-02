@@ -3,8 +3,9 @@
 #define GAME_H
 
 #include <stdbool.h>
-#include "player.h"
 #include "words.h"
+
+typedef struct player Player;
 
 #define MAX_GUESSES 20
 #define MAX_GAMES 256

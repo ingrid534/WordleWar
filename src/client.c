@@ -119,12 +119,23 @@ int prompt_word(int soc){
     fprintf(stdout, "Please enter a word for your opponent to guess: ");
     read_user_input(user_input, BUFSIZE);
 
+    // Strip newline characters
+    int len = strlen(user_input);
+    while (len > 0 && (user_input[len - 1] == '\n' || user_input[len - 1] == '\r')) {
+        user_input[--len] = '\0';
+    }
 
     // Ensure word is of valid length
     while(strlen(user_input) > 8 || strlen(user_input) < 5){
         fprintf(stdout, "Try again. Proposed word must be in between 5 to 8 characters. ");
         fprintf(stdout, "Please enter a word for your opponent to guess: ");
         read_user_input(user_input, BUFSIZE);
+
+        // Strip newline characters
+        len = strlen(user_input);
+        while (len > 0 && (user_input[len - 1] == '\n' || user_input[len - 1] == '\r')) {
+            user_input[--len] = '\0';
+        }
     }
 
     // Write user input

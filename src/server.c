@@ -23,6 +23,10 @@ Player *clients[FD_SETSIZE] = {NULL};
  */
 struct sockaddr_in *init_server_addr(int port) {
     struct sockaddr_in *addr = malloc(sizeof(struct sockaddr_in));
+    if (addr == NULL) {
+        perror("server: malloc");
+        exit(1);
+    }
 
     addr->sin_family = AF_INET;
     addr->sin_port = htons(port);
@@ -177,6 +181,10 @@ char *extract_msg(Player *player) {
         
         // Make copy of msg to process it
         char *msg = malloc(where - 1); 
+        if (msg == NULL) {
+            perror("server: malloc");
+            exit(1);
+        }
         strcpy(msg, player->buf);
 
         player->inbuf -= where;
