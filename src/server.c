@@ -14,7 +14,7 @@
 #include "protocol.h"
 #include "words.h"
 
-#define MAX_SESSIONS 50
+#define MAX_SESSIONS 50 
 
 Player *clients[FD_SETSIZE] = {NULL};
 

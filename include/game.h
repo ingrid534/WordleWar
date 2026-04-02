@@ -8,7 +8,7 @@
 typedef struct player Player;
 
 #define MAX_GUESSES 20
-#define MAX_GAMES 256
+#define MAX_GAMES 64 
 
 typedef enum game_state {
     WAITING_FOR_PLAYER,
