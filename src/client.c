@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <signal.h>
 #include <unistd.h>
 #include <netdb.h>
 #include <sys/socket.h>
@@ -29,7 +30,7 @@ int connect_to_server(int soc, int port, const char *hostname){
     struct addrinfo *ai;
     // Call populates list
     getaddrinfo(hostname, NULL, NULL, &ai);
-
+    
     // Want first element in the list
     server.sin_addr = ((struct sockaddr_in *)ai -> ai_addr)->sin_addr;
      
@@ -118,12 +119,23 @@ int prompt_word(int soc){
     fprintf(stdout, "Please enter a word for your opponent to guess: ");
     read_user_input(user_input, BUFSIZE);
 
+    // Strip newline characters
+    int len = strlen(user_input);
+    while (len > 0 && (user_input[len - 1] == '\n' || user_input[len - 1] == '\r')) {
+        user_input[--len] = '\0';
+    }
 
     // Ensure word is of valid length
     while(strlen(user_input) > 8 || strlen(user_input) < 5){
         fprintf(stdout, "Try again. Proposed word must be in between 5 to 8 characters. ");
         fprintf(stdout, "Please enter a word for your opponent to guess: ");
         read_user_input(user_input, BUFSIZE);
+
+        // Strip newline characters
+        len = strlen(user_input);
+        while (len > 0 && (user_input[len - 1] == '\n' || user_input[len - 1] == '\r')) {
+            user_input[--len] = '\0';
+        }
     }
 
     // Write user input
@@ -182,11 +194,12 @@ void give_wait(int soc) {
 /*
 * Tell the user they won the game 
 */
+// TODO: display guesses instead of score
 void give_win(int soc, const char * server_msg) {
     (void)soc;
     char *score = strstr(server_msg, ":");
     if (score != NULL) {
-        printf("You win! You scored %s.\n", score + 1);
+        printf("You win! You guessed the word in %s guess(es)!.\n", score + 1);
     } else {
         printf("You win!\n");
     }
@@ -200,7 +213,7 @@ void give_lost(int soc, const char * server_msg) {
     (void)soc;
     char *score = strstr(server_msg, ":");
     if (score != NULL) {
-        printf("You lost! You scored: %s.\n", score + 1);
+        printf("You lost! You guessed the word in %s guess(es).\n", score + 1);
     } else {
         printf("You lost!\n");
     }
@@ -213,7 +226,7 @@ void give_tie(int soc, const char *server_msg) {
     (void)soc;
     char *score = strstr(server_msg, ":");
     if (score != NULL) {
-        printf("You tied! You both scored: %s.\n", score + 1);
+        printf("You tied! You both took %s guess(es).\n", score + 1);
     } else {
         printf("You tied!\n");
     }
@@ -236,8 +249,18 @@ int write_to_server(int soc, char *msg, int msg_buffer_size){
 
     int length_to_send = len + 2;
 
-    // Send to server; does not include null termination character
-    if(write(soc, msg, length_to_send)==-1){
+    int inbuf = 0;
+    int room = length_to_send;
+    char *after = msg;
+    ssize_t nbytes;
+
+    while ((nbytes = write(soc, after, room)) > 0) {
+        inbuf += (int)nbytes;
+        room -= (int)nbytes;
+        after = &msg[inbuf];
+    }
+
+    if (nbytes == -1 || room > 0) {
         fprintf(stderr, "Server disconnected.\n");
         close(soc);
         return -1;
@@ -316,8 +339,11 @@ int main(){
         exit(1);
     }
 
+    // ignore closed socket signal (let write handle the fail)
+    signal(SIGPIPE, SIG_IGN);
+
     // Connect with server; only returns if connection successful
-    connect_to_server(server_socket, 43465, "localhost");
+    connect_to_server(server_socket, PORT, "localhost");
 
         // client reads_server_msg
         // client checks which prompt
@@ -408,6 +434,9 @@ int main(){
             break;
         }
     }
-    close(server_socket);
+    // check if socket was already closed in a read call before closing
+    if (server_socket >= 0) {
+        close(server_socket);
+    }
  
 }

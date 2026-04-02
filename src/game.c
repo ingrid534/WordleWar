@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "game.h"
+#include "player.h"
 
 static Game *games[MAX_GAMES] = {0};
 

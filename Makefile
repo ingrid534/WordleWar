@@ -1,4 +1,4 @@
-FLAGS = -Wall -g -Iinclude
+FLAGS = -Wall -Wextra -g -Iinclude -DPORT=43465
 
 target = wordle
 client_target = wordle_client
