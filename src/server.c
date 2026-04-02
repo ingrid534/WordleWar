@@ -431,7 +431,7 @@ int main() {
     signal(SIGPIPE, SIG_IGN);
 
     // random port
-    struct sockaddr_in *self= init_server_addr(43465);
+    struct sockaddr_in *self= init_server_addr(PORT);
     int listenfd= set_up_server_socket(self, MAX_SESSIONS);
 
     int numfd = listenfd;

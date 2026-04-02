@@ -342,7 +342,7 @@ int main(){
     signal(SIGPIPE, SIG_IGN);
 
     // Connect with server; only returns if connection successful
-    connect_to_server(server_socket, 43465, "localhost");
+    connect_to_server(server_socket, PORT, "localhost");
 
         // client reads_server_msg
         // client checks which prompt
