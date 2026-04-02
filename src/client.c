@@ -194,11 +194,12 @@ void give_wait(int soc) {
 /*
 * Tell the user they won the game 
 */
+// TODO: display guesses instead of score
 void give_win(int soc, const char * server_msg) {
     (void)soc;
     char *score = strstr(server_msg, ":");
     if (score != NULL) {
-        printf("You win! You scored %s.\n", score + 1);
+        printf("You win! You guessed the word in %s guess(es)!.\n", score + 1);
     } else {
         printf("You win!\n");
     }
@@ -212,7 +213,7 @@ void give_lost(int soc, const char * server_msg) {
     (void)soc;
     char *score = strstr(server_msg, ":");
     if (score != NULL) {
-        printf("You lost! You scored: %s.\n", score + 1);
+        printf("You lost! You guessed the word in %s guess(es).\n", score + 1);
     } else {
         printf("You lost!\n");
     }
@@ -225,7 +226,7 @@ void give_tie(int soc, const char *server_msg) {
     (void)soc;
     char *score = strstr(server_msg, ":");
     if (score != NULL) {
-        printf("You tied! You both scored: %s.\n", score + 1);
+        printf("You tied! You both took %s guess(es).\n", score + 1);
     } else {
         printf("You tied!\n");
     }

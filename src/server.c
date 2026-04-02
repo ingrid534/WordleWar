@@ -378,15 +378,15 @@ void handle_player(int client_fd) {
                     finalize_scores(game); 
                     // Compare scores (guess counts) and send win/lose 
                     if (game->player1_score > game->player2_score) {
-                        write_status_with_score(game->player1->fd, STAT_WIN, game->player1_score);
-                        write_status_with_score(game->player2->fd, STAT_LOST, game->player2_score);
+                        write_status_with_score(game->player1->fd, STAT_WIN, game->player1_guesses);
+                        write_status_with_score(game->player2->fd, STAT_LOST, game->player2_guesses);
 
                     } else if (game->player2_score > game->player1_score) {
-                        write_status_with_score(game->player2->fd, STAT_WIN, game->player2_score);
-                        write_status_with_score(game->player1->fd, STAT_LOST, game->player1_score);
+                        write_status_with_score(game->player2->fd, STAT_WIN, game->player2_guesses);
+                        write_status_with_score(game->player1->fd, STAT_LOST, game->player1_guesses);
                     } else {
-                        write_status_with_score(game->player1->fd, STAT_TIE, game->player1_score);
-                        write_status_with_score(game->player2->fd, STAT_TIE, game->player1_score);
+                        write_status_with_score(game->player1->fd, STAT_TIE, game->player1_guesses);
+                        write_status_with_score(game->player2->fd, STAT_TIE, game->player1_guesses);
                     }
 
                     if (game->player1 != NULL) {
