@@ -194,7 +194,6 @@ void give_wait(int soc) {
 /*
 * Tell the user they won the game 
 */
-// TODO: display guesses instead of score
 void give_win(int soc, const char * server_msg) {
     (void)soc;
     char *score = strstr(server_msg, ":");
