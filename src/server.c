@@ -318,8 +318,11 @@ void handle_player(int client_fd) {
                 add_player(player, game); 
                 player->state = WAITING_WORD;
                 write_to_client(player->fd, WORD);
+            } else if (game != NULL) {
+                write_to_client(player->fd, GAME_FULL);
+                player->state = WAITING_GAME_CHOICE;
             } else {
-                // Invalid code or game full, ask for code again
+                // Invalid code, ask for code again
                 write_to_client(player->fd, INVALID_CODE);
                 player->state = WAITING_GAME_CHOICE;
             }
