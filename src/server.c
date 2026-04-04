@@ -94,20 +94,9 @@ void write_to_client(int client_fd, const char *msg) {
     char buf[1024];
     snprintf(buf, sizeof(buf), "%s\r\n", msg);
 
-    int inbuf = 0;
-    int room = (int)strlen(buf);
-    char *after = buf;
-    ssize_t nbytes;
-
-    while ((nbytes = write(client_fd, after, (size_t)room)) > 0) {
-        inbuf += (int)nbytes;
-        room -= (int)nbytes;
-        after = &buf[inbuf];
-    }
-
-    if (nbytes == -1 || room > 0) {
+    ssize_t nbytes = write(client_fd, buf, strlen(buf));
+    if (nbytes == -1) {
         perror("server: write");
-        exit(1);
     }
 }
 
