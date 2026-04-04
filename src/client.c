@@ -349,7 +349,12 @@ char *read_server_msg(int soc){
 }
 
 
-int main(){
+int main(int argc, char *argv[]){
+    if (argc != 2) {
+        fprintf(stderr, "Usage: %s <server_hostname_or_ip>\n", argv[0]);
+        exit(1);
+    }
+    
     // Create socket and exit on failure
     int server_socket = socket(AF_INET, SOCK_STREAM, 0);
     if (server_socket == -1){
@@ -361,7 +366,7 @@ int main(){
     signal(SIGPIPE, SIG_IGN);
 
     // Connect with server; only returns if connection successful
-    connect_to_server(server_socket, PORT, "localhost");
+    connect_to_server(server_socket, PORT, argv[1]);
 
         // client reads_server_msg
         // client checks which prompt
