@@ -230,6 +230,27 @@ void write_status_with_score(int client_fd, const char *status_prefix, int score
     free(msg);
 }
 
+void write_board_with_guesses_left(Player *player) {
+    if (player == NULL || player->game == NULL) {
+        return;
+    }
+
+    Game *game = player->game;
+    int guesses_used = (game->player1 == player) ? game->player1_guesses : game->player2_guesses;
+    int guesses_left = MAX_GUESSES - guesses_used;
+
+    char board_msg[BUFSIZE];
+    snprintf(board_msg, sizeof(board_msg), "%s:%d", player->board, guesses_left);
+
+    char *signal = generate_msg(BOARD, board_msg);
+    if (signal == NULL) {
+        return;
+    }
+
+    write_to_client(player->fd, signal);
+    free(signal);
+}
+
 /*
 * Handle player's input game choice
 * If player says 'J', prompt for join code
@@ -238,7 +259,7 @@ void write_status_with_score(int client_fd, const char *status_prefix, int score
 void handle_choice(int client_fd, char *choice) {
     Player *player = clients[client_fd];
     
-    if (strcmp(choice, "J") == 0) {
+    if (strcmp(choice, "J") == 0) { 
         write_to_client(client_fd, CODE);
         player->state = WAITING_CODE;
         return;
@@ -310,7 +331,8 @@ void handle_player(int client_fd) {
                 write_to_client(player->fd, WORD);
             } else {
                 // Invalid code or game full, ask for code again
-                write_to_client(player->fd, CODE);
+                write_to_client(player->fd, INVALID_CODE);
+                player->state = WAITING_GAME_CHOICE;
             }
 
         } else if (state == WAITING_WORD) {
@@ -323,14 +345,9 @@ void handle_player(int client_fd) {
                     player->state = WAITING_GUESS;
                     opponent->state = WAITING_GUESS;
                     game->state = IN_PROGRESS;
-                    
-                    char *signal1 = generate_msg(BOARD, game->player1->board);
-                    write_to_client(game->player1->fd, signal1);
-                    free(signal1); 
-                    
-                    char *signal2 = generate_msg(BOARD, game->player2->board);
-                    write_to_client(game->player2->fd, signal2);
-                    free(signal2);
+
+                    write_board_with_guesses_left(game->player1);
+                    write_board_with_guesses_left(game->player2);
                 } else {
                     player->state = WAITING_OPPONENT_WORD;
                     write_to_client(player->fd, WAIT_OPPONENT_WORD);
@@ -352,7 +369,7 @@ void handle_player(int client_fd) {
             
             char *board = check_guess(player, msg);
             if (board == NULL) {
-                write_to_client(player->fd, BOARD);
+                write_board_with_guesses_left(player);
                 continue;
             }
             update_board(player, board);
@@ -363,30 +380,53 @@ void handle_player(int client_fd) {
             bool out_of_guesses = (guesses_used >= MAX_GUESSES);
 
             if (solved || out_of_guesses) {
-                player->state = WAITING_SCORE; 
                 if (solved) {
                     write_to_client(player->fd, GUESSED_WORD);
+                    player->state = WAITING_SCORE_GUESSED;
                 } else {
                     write_to_client(player->fd, OUT_OF_GUESSES);
+                    player->state = WAITING_SCORE_FAILED;
                 }
-                
+
                 Player *opponent = (game->player1 == player) ? game->player2 : game->player1;
 
-                if (opponent != NULL && opponent->state == WAITING_SCORE) {
+                if (opponent != NULL && (opponent->state == WAITING_SCORE_GUESSED || opponent->state == WAITING_SCORE_FAILED)) {
                     // Both players finished guessing
                     game->state = GAME_OVER;
                     finalize_scores(game); 
-                    // Compare scores (guess counts) and send win/lose 
+                    // Compare scores (guess counts) and send win/lose (stat_failed if player failed to guess)
                     if (game->player1_score > game->player2_score) {
                         write_status_with_score(game->player1->fd, STAT_WIN, game->player1_guesses);
-                        write_status_with_score(game->player2->fd, STAT_LOST, game->player2_guesses);
+                        if (game->player2->state== WAITING_SCORE_GUESSED) {
+                            write_status_with_score(game->player2->fd, STAT_LOST, game->player2_guesses);
+                        } else {
+                            write_to_client(game->player2->fd, STAT_FAILED);
+                        }
 
                     } else if (game->player2_score > game->player1_score) {
                         write_status_with_score(game->player2->fd, STAT_WIN, game->player2_guesses);
-                        write_status_with_score(game->player1->fd, STAT_LOST, game->player1_guesses);
-                    } else {
+                        if (game->player1->state == WAITING_SCORE_GUESSED) {
+                            write_status_with_score(game->player1->fd, STAT_LOST, game->player1_guesses);
+                        } else {
+                            write_to_client(game->player1->fd, STAT_FAILED);
+                        }
+                        
+                    } else if (game->player1->state == WAITING_SCORE_GUESSED 
+                            && game->player2->state == WAITING_SCORE_FAILED) {
+                        write_status_with_score(game->player1->fd, STAT_WIN, game->player1_guesses);
+                        write_to_client(game->player2->fd, STAT_FAILED);
+
+                    } else if (game->player1->state == WAITING_SCORE_FAILED
+                            && game->player2->state == WAITING_SCORE_GUESSED) {
+                        write_to_client(game->player1->fd, STAT_FAILED);
+                        write_status_with_score(game->player2->fd, STAT_WIN, game->player2_guesses);
+
+                    } else if (game->player1->state == WAITING_SCORE_GUESSED) {
                         write_status_with_score(game->player1->fd, STAT_TIE, game->player1_guesses);
                         write_status_with_score(game->player2->fd, STAT_TIE, game->player1_guesses);
+                    } else {
+                        write_to_client(game->player1->fd, STAT_FAILED);
+                        write_to_client(game->player2->fd, STAT_FAILED);
                     }
 
                     if (game->player1 != NULL) {
@@ -403,9 +443,7 @@ void handle_player(int client_fd) {
                 
             } else {
                 // Incorrect guess, send updated board 
-                char *signal = generate_msg(BOARD, player->board);
-                write_to_client(player->fd, signal);
-                free(signal);
+                write_board_with_guesses_left(player);
             }
         }
 
@@ -430,7 +468,6 @@ int main() {
 
     signal(SIGPIPE, SIG_IGN);
 
-    // random port
     struct sockaddr_in *self= init_server_addr(PORT);
     int listenfd= set_up_server_socket(self, MAX_SESSIONS);
 

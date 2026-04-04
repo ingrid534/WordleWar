@@ -149,18 +149,29 @@ int prompt_word(int soc){
 * "e" is a letter in the word but in the wrong place, and the other letters were incorrect.
 */
 int prompt_guess(int soc, const char *server_msg){
-    // Formatted string contains board and num guesses left separated by & - double check this
-    // i.e. Board: --A--e & Number of Guesses Left: 10
     char msg_copy[BUFSIZE];
-    strncpy(msg_copy, server_msg, BUFSIZE - 1);
-    msg_copy[BUFSIZE - 1] = '\0';
+    msg_copy[0] = '\0';
 
-    char *num_guess_left = strstr(msg_copy, "&");
-    if (num_guess_left != NULL) {
-        *num_guess_left = '\0';
-        printf("%s", num_guess_left + 1);
+    const char *board_text = server_msg;
+    if (board_text != NULL && strncmp(board_text, BOARD, strlen(BOARD)) == 0) {
+        board_text += strlen(BOARD);
     }
-    printf("%s", msg_copy);
+
+    if (board_text != NULL) {
+        strncpy(msg_copy, board_text, BUFSIZE - 1);
+        msg_copy[BUFSIZE - 1] = '\0';
+    }
+
+    char *guesses_left = strrchr(msg_copy, ':');
+    if (guesses_left != NULL) {
+        *guesses_left = '\0';
+        guesses_left++;
+        printf("Board: %s\n", msg_copy);
+        printf("Guesses left: %s\n", guesses_left);
+    } else if (msg_copy[0] != '\0') {
+        printf("Board: %s\n", msg_copy);
+    }
+
     char guess[BUFSIZE];
     
     //Get guess from user
@@ -229,6 +240,14 @@ void give_tie(int soc, const char *server_msg) {
     } else {
         printf("You tied!\n");
     }
+}
+
+/*
+* Tell this user they failed to guess the word
+*/
+void give_failed(int soc) {
+    (void)soc;
+    printf("You failed to guess the word :( You lose.\n");
 }
 
 int write_to_server(int soc, char *msg, int msg_buffer_size){
@@ -372,8 +391,8 @@ int main(){
             write_status = prompt_code(server_socket);
             free(line_read);
         } else if(strcmp(line_read, INVALID_CODE) == 0){
-            printf("Session does not exist.");
-            write_status = prompt_code(server_socket);
+            printf("Session does not exist.\n");
+            write_status = give_game_choice(server_socket);
             free(line_read);
         } else if (strcmp(line_read, WORD) == 0) {
             write_status = prompt_word(server_socket); 
@@ -420,6 +439,9 @@ int main(){
             give_tie(server_socket, line_read);
             free(line_read);
             break;
+        } else if (strcmp(line_read, STAT_FAILED) == 0) {
+            give_failed(server_socket);
+            free(line_read);
         } else if (strcmp(line_read, PLAYER_DISCONNECT) == 0) {
             write_status = give_disconnect(server_socket);
             free(line_read);

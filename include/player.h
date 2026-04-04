@@ -14,7 +14,8 @@ typedef enum {
     WAITING_WORD,
     WAITING_OPPONENT_WORD,
     WAITING_GUESS,
-    WAITING_SCORE
+    WAITING_SCORE_GUESSED,
+    WAITING_SCORE_FAILED
 } PlayerState;
 
 typedef struct player {

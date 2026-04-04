@@ -25,6 +25,7 @@
 #define STAT_WIN "win:"
 #define STAT_LOST "lost:"
 #define STAT_TIE "tie:"
+#define STAT_FAILED "failed"
 
 // error handling
 #define PLAYER_DISCONNECT "player disconnected"
